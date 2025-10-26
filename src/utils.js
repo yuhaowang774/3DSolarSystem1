@@ -99,7 +99,7 @@ function createOrbit(str) {
 }
 
 const createSprite = (name) => {
-    const texture = new THREE.TextureLoader().load(`/assets/${name}.png`);
+    const texture = new THREE.TextureLoader().load(`../assets/${name}.png`);
     texture.colorSpace = THREE.SRGBColorSpace;// 不然颜色会泛白
     const material = new THREE.SpriteMaterial({ map: texture, color: 0xFFB900 });
     const mesh = new THREE.Sprite(material);
@@ -109,7 +109,7 @@ const createSprite = (name) => {
 };
 
 const createSun = (name, radius) => {
-    const texture = new THREE.TextureLoader().load(`/assets/${name}.jpg`);
+    const texture = new THREE.TextureLoader().load(`../assets/${name}.jpg`);
     texture.colorSpace = THREE.SRGBColorSpace;
     const geometry = new THREE.SphereGeometry(radius, 64, 64);
     const material = new THREE.MeshBasicMaterial({ map: texture, color: 0xffff00 });
@@ -124,10 +124,10 @@ const createSun = (name, radius) => {
 
 const createPlanet = (name, radius) => {
     let texture1, texture2, material;
-    const texture = new THREE.TextureLoader().load(`/assets/${name}.jpg`);
+    const texture = new THREE.TextureLoader().load(`../assets/${name}.jpg`);
     if(name == 'earth') {
-        texture1 = new THREE.TextureLoader().load(`/assets/earth_normal_map.png`);
-        texture2 = new THREE.TextureLoader().load(`/assets/earth_specular_map.png`);
+        texture1 = new THREE.TextureLoader().load(`../assets/earth_normal_map.png`);
+        texture2 = new THREE.TextureLoader().load(`../assets/earth_specular_map.png`);
         material = new THREE.MeshPhongMaterial({ map: texture, normalMap: texture1, specularMap: texture2 });
     }
     else {
@@ -162,7 +162,7 @@ const createPlanet = (name, radius) => {
 };
 
 const createUniverse = (name, radius) => {
-    const texture = new THREE.TextureLoader().load(`/assets/${name}.jpg`);
+    const texture = new THREE.TextureLoader().load(`../assets/${name}.jpg`);
     texture.colorSpace = THREE.SRGBColorSpace;
     const geometry = new THREE.SphereGeometry(radius, 64, 64);
     const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide });
@@ -174,7 +174,7 @@ const createUniverse = (name, radius) => {
 
 const createRing = (name, innerRadius, outerRadius) => {
     const ringTextureLoader = new THREE.TextureLoader();
-    const ringTexture = ringTextureLoader.load(`/assets/${name}.png`);
+    const ringTexture = ringTextureLoader.load(`../assets/${name}.png`);
     ringTexture.colorSpace = THREE.SRGBColorSpace;
     const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 128);
 

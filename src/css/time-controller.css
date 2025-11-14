@@ -1,0 +1,175 @@
+/* 时间控制器容器 */
+.time-controller-container {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 100;
+  padding: 16px 24px;
+  background: transparent; /* 完全透明背景 */
+  border-radius: 16px;
+  box-shadow: none;
+  backdrop-filter: none;
+  transition: all 0.3s ease;
+}
+
+/* 速度显示文本 */
+.speed-display {
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  min-width: 160px;
+  text-align: center;
+  padding: 4px 0;
+  transition: all 0.2s ease;
+}
+
+/* 速度滑块基础样式 */
+.speed-slider {
+  width: 400px;
+  height: 24px; /* 足够高度容纳控制柄 */
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 10px 0;
+}
+
+/* 滑块轨迹样式（左侧红色/右侧蓝色） */
+.speed-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px; /* 细轨迹 */
+  border-radius: 2px;
+  background: linear-gradient(to right, 
+    #ff4444 0%, #ff4444 48%, /* 倒退侧（红） */
+    #2196F3 52%, #2196F3 100% /* 前进侧（蓝） */
+  );
+  /* 边缘渐变融入背景 */
+  mask-image: linear-gradient(to right, 
+    transparent 0%, black 10%, 
+    black 90%, transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(to right, 
+    transparent 0%, black 10%, 
+    black 90%, transparent 100%
+  );
+  /* 向下突出的弧度 */
+  transform: perspective(20px) rotateX(5deg);
+}
+
+.speed-slider::-moz-range-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, 
+    #ff4444 0%, #ff4444 48%,
+    #2196F3 52%, #2196F3 100%
+  );
+  mask-image: linear-gradient(to right, 
+    transparent 0%, black 10%, 
+    black 90%, transparent 100%
+  );
+  transform: perspective(200px) rotateX(5deg);
+}
+
+/* 滑块控制柄样式 */
+.speed-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px; /* 圆形控制柄 */
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.8),
+              0 2px 6px rgba(0,0,0,0.3);
+  cursor: pointer;
+  margin-top: -8px; /* 对齐轨迹中心 */
+  z-index: 2;
+  transition: all 0.2s ease;
+}
+
+.speed-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.8),
+              0 2px 6px rgba(0,0,0,0.3);
+  cursor: pointer;
+  z-index: 2;
+  transition: all 0.2s ease;
+}
+
+/* 控制柄悬停效果 */
+.speed-slider::-webkit-slider-thumb:hover,
+.speed-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 2px white,
+              0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* 控制按钮基础样式 */
+.time-control-btn {
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 后退按钮 */
+.rewind-btn {
+  /* 基础样式继承自.time-control-btn */
+  box-sizing: border-box; /* 占位样式，避免空规则集 */
+}
+
+.rewind-btn:hover {
+  transform: scale(1.1);
+  background: rgba(255,68,68,0.2); /* 红色半透明背景 */
+}
+
+/* 播放/暂停按钮 */
+.play-pause-btn {
+  font-size: 26px;
+  margin: 0 8px;
+}
+
+.play-pause-btn:hover {
+  transform: scale(1.1);
+  background: rgba(255,255,255,0.1);
+}
+
+/* 快进按钮 */
+.fast-forward-btn {
+ box-sizing: border-box; /* 占位样式，避免空规则集 */
+}
+
+.fast-forward-btn:hover {
+  transform: scale(1.1);
+  background: rgba(33, 150, 243, 0.2); /* 蓝色半透明背景 */
+}
+
+/* 按钮脉冲动画 */
+.btn-pulse {
+  animation: pulse 0.3s ease;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}

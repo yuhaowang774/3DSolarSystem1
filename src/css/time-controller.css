@@ -119,6 +119,7 @@
     backdrop-filter: blur(5px);
     height: 24rem;
     flex-direction: column;
+    bottom: 8rem;
   }
 
   #planet-info-panel.active ~ .time-controller-container {
@@ -708,3 +709,4 @@
     margin: 1rem auto;
   }
 }
+

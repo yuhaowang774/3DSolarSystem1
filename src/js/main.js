@@ -252,6 +252,34 @@ function preventPageZoom(event) {
   }
 }
 
+// 防止输入框自动缩放的函数
+function preventInputZoom() {
+  // 获取原始缩放级别
+  const originalViewportScale = document.querySelector('meta[name=viewport]').getAttribute('content');
+  
+  // 为所有输入元素添加事件监听器
+  const inputs = document.querySelectorAll('input, textarea');
+  inputs.forEach(input => {
+    input.addEventListener('focus', () => {
+      // 当输入框获取焦点时，设置viewport不允许缩放
+      document.querySelector('meta[name=viewport]').setAttribute(
+        'content', 
+        'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+      );
+    });
+    
+    input.addEventListener('blur', () => {
+      // 当输入框失去焦点时，恢复原始viewport设置
+      document.querySelector('meta[name=viewport]').setAttribute('content', originalViewportScale);
+    });
+  });
+}
+
+// 在DOM加载完成后初始化防缩放功能
+document.addEventListener('DOMContentLoaded', () => {
+  preventInputZoom();
+});
+
 // 监听信息面板的激活状态变化，控制OrbitControls的启用/禁用和页面缩放行为
 function updateControlsState() {
   const infoPanel = document.getElementById("planet-info-panel");

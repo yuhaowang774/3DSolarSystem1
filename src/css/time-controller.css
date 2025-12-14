@@ -1,0 +1,710 @@
+.time-controller-container {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.7) 0%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
+  padding: 1rem 2rem 1rem;
+  border-radius: 1rem 1rem 0 0;
+  backdrop-filter: blur(10px);
+  z-index: 999;
+  box-shadow: 0 -0.2rem 2rem rgba(0, 0, 0, 0.3);
+  min-width: 90vw;
+  max-width: 60rem;
+  box-sizing: border-box;
+  height: 15rem;
+  top: auto;
+  border-top: none;
+  margin-top: 0;
+  transition: all 0.3s ease;
+  flex-wrap: nowrap; /* 防止元素换行 */
+}
+
+/* 折叠状态下的时间控制器 */
+.time-controller-container.collapsed {
+  height: 4rem;
+  padding: 0.5rem 2rem;
+  backdrop-filter: blur(5px);
+  box-shadow: 0 -0.1rem 1rem rgba(0, 0, 0, 0.2);
+  justify-content: center; /* 在折叠状态下居中显示时间 */
+}
+
+/* 展开状态下的时间控制器 */
+.time-controller-container.expanded {
+  height: 15rem;
+  justify-content: center; /* 在展开状态下也居中显示内容 */
+}
+
+/* 折叠状态下的时间控制器 */
+.time-controller-container.collapsed {
+  height: 4rem;
+  padding: 0.5rem 2rem;
+  backdrop-filter: blur(5px);
+  box-shadow: 0 -0.1rem 1rem rgba(0, 0, 0, 0.2);
+}
+
+/* 展开状态下的时间控制器 */
+.time-controller-container.expanded {
+  height: 15rem;
+}
+
+/* 当星球信息面板显示时，调整时间控制器位置 */
+#planet-info-panel.active ~ .time-controller-container {
+  width: calc(100% - 32rem);
+  max-width: calc(100% - 32rem);
+  min-width: calc(100% - 32rem);
+}
+
+/* 折叠状态下的时间控制器（当星球信息面板显示时） */
+#planet-info-panel.active ~ .time-controller-container.collapsed {
+  width: calc(100% - 32rem);
+  max-width: calc(100% - 32rem);
+  min-width: calc(100% - 32rem);
+  height: 4rem;
+}
+
+/* 中等桌面尺寸适配 */
+@media (min-width: 76.9rem) and (max-width: 120rem) {
+  /* 确保信息面板与时间控制器精确对接 */
+  #planet-info-panel {
+    height: calc(100vh - 15rem);
+    padding-bottom: 0;
+  }
+
+  .time-controller-container {
+    height: 15rem;
+    padding: 1rem 2rem 1rem;
+    align-items: center; /* 确保容器内元素垂直居中 */
+    justify-content: center;
+  }
+
+  #planet-info-panel.active ~ .time-controller-container {
+    width: calc(100% - 32rem);
+    height: 15rem;
+    transform: translateX(-50%); /* 保持水平居中 */
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+  }
+}
+
+/* 大屏幕桌面适配 */
+@media (min-width: 120.1rem) {
+  #planet-info-panel {
+    height: calc(100vh - 15rem);
+    padding-bottom: 0;
+  }
+
+  .time-controller-container {
+    max-width: 80rem;
+  }
+
+  #planet-info-panel.active ~ .time-controller-container {
+    max-width: none;
+  }
+}
+
+/* 移动端响应式调整 */
+@media (max-width: 76.8rem) {
+  .time-controller-container {
+    padding: 1.5rem 2rem;
+    min-width: 100%;
+    backdrop-filter: blur(5px);
+    height: 24rem;
+    flex-direction: column;
+  }
+
+  #planet-info-panel.active ~ .time-controller-container {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    flex-direction: column;
+  }
+
+  #planet-info-panel.active ~ .time-controller-container .time-left-container {
+    flex-direction: row;
+    margin-right: 0;
+    margin-bottom: 1.5rem;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  #planet-info-panel.active ~ .time-controller-container .time-right-container {
+    width: 100%;
+  }
+}
+
+/* 左右容器布局 */
+.time-left-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 2rem;
+  width: 10rem;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.3s ease;
+}
+
+.time-right-container {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  text-align: center;
+  transition: opacity 0.3s ease;
+  flex-shrink: 0; /* 防止被压缩 */
+  flex-basis: 0; /* 设置基础尺寸为0，让flex-grow控制增长 */
+}
+
+/* 折叠状态下的容器 */
+.time-controller-container.collapsed .time-left-container,
+.time-controller-container.collapsed .time-right-container {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 展开状态下的容器 */
+.time-controller-container.expanded .time-left-container,
+.time-controller-container.expanded .time-right-container {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* LIVE按钮样式 */
+.live-button {
+  background: none;
+  border: none;
+  color: #4caf50;
+  font-size: 1.6rem;
+  font-weight: bold;
+  font-family: "Orbitron", sans-serif;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1rem;
+  transition: all 0.3s ease;
+  text-shadow: 0 0 0.5rem rgba(76, 175, 80, 0.3);
+  display: inline-block;
+  /* 确保在布局中保持独立但与其他元素和谐共存 */
+}
+
+.live-button:hover {
+  color: #66bb6a;
+  transform: scale(1.05);
+  text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+}
+
+.live-button.active {
+  color: #4caf50;
+  text-shadow: 0 0 15px rgba(76, 175, 80, 0.7);
+  animation: pulse 1.5s infinite;
+}
+
+/* 折叠状态下的LIVE按钮 */
+.time-controller-container.collapsed .live-button {
+  font-size: 1.2rem;
+  padding: 0.2rem 0.5rem;
+  margin-bottom: 0;
+}
+
+/* LIVE指示器样式 */
+.live-indicator {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.4rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.1rem;
+  transition: all 0.3s ease;
+}
+
+.live-indicator.active {
+  color: #4caf50;
+  text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+  animation: pulse 2s infinite;
+}
+
+/* 折叠状态下的LIVE指示器 */
+.time-controller-container.collapsed .live-indicator {
+  font-size: 1rem;
+}
+
+/* 时间显示样式 */
+.time-display,
+.time-display-only {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.4rem;
+  color: #ddd;
+  text-align: center;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1rem;
+  background: transparent;
+  border-radius: 0.8rem;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 25rem; /* 添加固定最小宽度 */
+  width: 25rem; /* 添加固定宽度 */
+  flex-shrink: 0; /* 防止被压缩 */
+}
+
+.time-display {
+  color: #fff;
+  margin: 0 0.8rem;
+  white-space: nowrap; /* 防止文本换行 */
+  overflow: hidden; /* 隐藏超出部分 */
+  text-overflow: ellipsis; /* 显示省略号 */
+}
+
+.time-display-only {
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(5px);
+}
+
+/* 折叠状态下的时间显示 */
+.time-controller-container.collapsed .time-display {
+  height: 3rem;
+  font-size: 1.2rem;
+  color: #fff;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 0.8rem;
+  padding: 0 1.5rem;
+  margin: 0;
+  position: relative;
+  z-index: 100;
+}
+
+/* 展开状态下的时间显示 */
+.time-controller-container.expanded .time-display {
+  height: 3rem;
+  font-size: 1.4rem;
+  color: #fff;
+  margin: 0 0.8rem;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* 折叠状态下的时间显示 */
+.time-controller-container.collapsed .time-display {
+  height: 3rem;
+  font-size: 1.2rem;
+  color: #fff;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 0.8rem;
+  padding: 0 1.5rem;
+  margin: 0;
+}
+
+/* 展开状态下的时间显示 */
+.time-controller-container.expanded .time-display {
+  height: 3rem;
+  font-size: 1.4rem;
+  color: #fff;
+  margin: 0 0.8rem;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+
+.time-separator {
+  color: #888;
+  margin: 0 0.5rem;
+}
+
+.time-display.realtime-active {
+  color: #4caf50;
+}
+
+/* 控制器容器样式 */
+.controls-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  z-index: 10;
+  width: 100%; /* 确保占据整个可用宽度 */
+  transition: opacity 0.3s ease;
+}
+
+/* 主控制行 - 将所有控制元素放在一行 */
+.main-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  width: 100%;
+  /* 确保所有控制元素居中 */
+  flex-wrap: wrap;
+  transition: opacity 0.3s ease;
+}
+
+/* 折叠状态下的控制器 */
+.time-controller-container.collapsed .controls-container,
+.time-controller-container.collapsed .main-controls-row,
+.time-controller-container.collapsed .speed-slider {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 展开状态下的控制器 */
+.time-controller-container.expanded .controls-container,
+.time-controller-container.expanded .main-controls-row,
+.time-controller-container.expanded .speed-slider {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 日期显示样式 */
+.date-display {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.4rem;
+  color: #ddd;
+  text-align: center; /* 改为居中对齐 */
+  min-width: 12rem;
+  padding: 0.5rem 1rem;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 0.8rem;
+  backdrop-filter: blur(5px);
+  transition: opacity 0.3s ease;
+}
+
+/* 播放/暂停按钮包装容器 - 用于放置速度显示在上方 */
+.play-pause-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  /* 已居中 */
+}
+
+/* 速度显示样式 - 放在播放/暂停按钮上方 */
+.speed-display {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.2rem;
+  color: #888;
+  text-align: center;
+  white-space: nowrap;
+  padding: 0.2rem 0.8rem;
+  background-color: transparent;
+  border-radius: 0.6rem;
+  transition: opacity 0.3s ease;
+}
+
+/* 速度滑块基础样式 */
+.speed-slider {
+  width: 100%;
+  max-width: 40rem;
+  height: 2.4rem;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 1rem auto;
+  display: block;
+  position: relative;
+  /* 确保滑块的中心位置与播放/暂停按钮对齐 */
+  transform-origin: center center;
+  text-align: center;
+  transition: opacity 0.3s ease;
+}
+
+/* 滑块轨迹样式 */
+.speed-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 0.8rem;
+  border-radius: 0.4rem;
+  background: #333;
+}
+
+/* Firefox 浏览器 */
+.speed-slider::-moz-range-track {
+  width: 100%;
+  height: 0.8rem;
+  border-radius: 0.4rem;
+  background: #333;
+  border: none;
+}
+/* 滑块控制柄样式 - 注意：实际颜色会通过JS动态设置 */
+.speed-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #9e9e9e; /* 默认静止颜色，JS会动态更新 */
+  cursor: pointer;
+  margin-top: -0.6rem;
+  border: none;
+  outline: none;
+}
+
+/* Firefox 浏览器 */
+.speed-slider::-moz-range-thumb {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #9e9e9e; /* 默认静止颜色，JS会动态更新 */
+  cursor: pointer;
+  border: none;
+}
+
+/* 控制按钮基础样式 */
+.time-control-btn,
+.rewind-btn,
+.fast-forward-btn {
+  width: 3rem;
+  height: 3rem;
+  background: transparent;
+  border: 0.1rem solid transparent;
+  border-radius: 50%;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 播放/暂停按钮 */
+.play-pause-btn {
+  font-size: 2.6rem;
+  margin: 0 0.8rem;
+}
+
+/* 实时同步状态下的速度显示样式 */
+.speed-display.realtime-sync-active {
+  color: #4caf50;
+  text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+}
+
+/* 动画定义 */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes sync-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0.7;
+  }
+}
+
+@keyframes pulse-noscale {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .time-left-container {
+    flex-direction: row;
+    margin-right: 0;
+    margin-bottom: 1.5rem;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .live-button {
+    margin-right: 1rem;
+    margin-bottom: 0;
+    font-size: 1.8rem;
+    padding: 0.8rem 1.5rem;
+  }
+
+  .live-indicator {
+    font-size: 1.4rem;
+  }
+
+  .time-display {
+    font-size: 1.6rem;
+    margin: 0 1rem;
+  }
+
+  .main-controls-row {
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .speed-slider {
+    width: 90vw;
+    height: 3rem;
+    margin: 1.5rem auto;
+  }
+
+  /* 调整控制按钮大小 */
+  .time-control-btn,
+  .rewind-btn,
+  .fast-forward-btn {
+    width: 3.5rem;
+    height: 3.5rem;
+    font-size: 1.4rem;
+  }
+
+  .play-pause-btn {
+    font-size: 2.8rem;
+    margin: 0 0.8rem;
+    width: 4.5rem;
+    height: 4.5rem;
+  }
+
+  /* 日期显示调整 */
+  .date-display {
+    min-width: 12rem;
+    font-size: 1.5rem;
+  }
+
+  /* 速度显示放大 */
+  .speed-display {
+    font-size: 1.4rem;
+    padding: 0.5rem 1rem;
+  }
+
+  /* 滑块轨迹放大 */
+  .speed-slider::-webkit-slider-runnable-track {
+    height: 1rem;
+  }
+
+  .speed-slider::-moz-range-track {
+    height: 1rem;
+  }
+}
+
+/* 小屏手机适配 */
+@media (max-width: 48rem) {
+  .time-controller-container {
+    padding: 1.5rem 1.5rem;
+    box-shadow: 0 -0.2rem 1rem rgba(0, 0, 0, 0.5);
+    height: 26rem;
+  }
+
+  #planet-info-panel.active ~ .time-controller-container {
+    height: 26rem;
+  }
+
+  /* 进一步调整按钮大小，增大触摸区域 */
+  .time-control-btn,
+  .rewind-btn,
+  .fast-forward-btn {
+    width: 4rem;
+    height: 4rem;
+    font-size: 1.5rem;
+    padding: 0.5rem;
+    margin: -0.5rem;
+  }
+
+  .play-pause-btn {
+    font-size: 3rem;
+    width: 5rem;
+    height: 5rem;
+  }
+
+  .time-display,
+  .time-display-only {
+    font-size: 1.6rem;
+    height: 3.5rem;
+    padding: 0 1rem;
+  }
+
+  .date-display {
+    font-size: 1.5rem;
+    padding: 0.8rem 1rem;
+  }
+
+  /* 控制行间距调整 */
+  .main-controls-row {
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+
+  /* 滑块宽度调整 */
+  .speed-slider {
+    width: 100%;
+    height: 3.5rem;
+    margin: 1.5rem auto;
+  }
+
+  .speed-slider::-webkit-slider-runnable-track {
+    height: 0.6rem;
+  }
+
+  .speed-slider::-moz-range-track {
+    height: 0.6rem;
+  }
+
+  /* 滑块控制柄增大 */
+  .speed-slider::-webkit-slider-thumb {
+    width: 2.2rem;
+    height: 2.2rem;
+    margin-top: -0.8rem;
+  }
+
+  .speed-slider::-moz-range-thumb {
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+}
+
+/* 平板横屏适配 */
+@media (min-width: 76.9rem) and (max-width: 102.4rem) and (orientation: landscape) {
+  .time-controller-container {
+    max-width: 50rem;
+  }
+
+  .time-left-container {
+    margin-right: 1.5rem;
+    width: auto;
+  }
+
+  .time-right-container {
+    flex-grow: 1;
+  }
+
+  .speed-slider {
+    width: 80%;
+    max-width: 35rem;
+    margin: 1rem auto;
+  }
+}

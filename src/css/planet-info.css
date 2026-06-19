@@ -1,0 +1,1008 @@
+/* 全局基础样式 */
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* 禁止页面滚动，避免场景偏移 */
+}
+
+/* 信息面板设计系统 - CSS变量 */
+:root {
+  /* 颜色系统 */
+  --panel-bg: rgba(0, 0, 0, 0.8);
+  --panel-bg-light: rgba(255, 255, 255, 0.05);
+  --panel-bg-medium: rgba(255, 255, 255, 0.1);
+  --panel-bg-dark: rgba(0, 0, 0, 0.3);
+  --text-primary: #ffffff;
+  --text-secondary: #e0e0e0;
+  --text-tertiary: #b0b0b0;
+  --border-color: #333333;
+  --accent-color: #00bcd4;
+  --accent-hover: #0097a7;
+  --success-color: #4caf50;
+  --success-hover: #43a047;
+
+  /* 间距系统 */
+  --spacing-xs: 0.4rem;
+  --spacing-sm: 0.8rem;
+  --spacing-md: 1.6rem;
+  --spacing-lg: 2.4rem;
+  --spacing-xl: 3.2rem;
+
+  /* 字体系统 */
+  --font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  --font-size-xs: 0.8rem;
+  --font-size-sm: 1rem;
+  --font-size-base: 1.2rem;
+  --font-size-md: 1.4rem;
+  --font-size-lg: 1.6rem;
+  --font-size-xl: 2rem;
+  --font-size-xxl: 2.4rem;
+
+  /* 行高系统 */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.8;
+
+  /* 圆角系统 */
+  --radius-sm: 0.4rem;
+  --radius-md: 0.8rem;
+  --radius-lg: 1.2rem;
+
+  /* 阴影系统 */
+  --shadow-sm: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 0.8rem 1.6rem rgba(0, 0, 0, 0.5);
+
+  /* 过渡系统 */
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+  --transition-slow: 0.5s ease;
+}
+
+/* 3D场景容器（关键：必须让Three.js正常渲染） */
+#scene-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1; /* 场景层级最低，确保按钮和面板在上方 */
+}
+
+/* 信息面板核心样式 */
+#planet-info-panel {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 36rem;
+  height: calc(100vh - 15rem); /* 为时间控制器留出底部空间 */
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  padding: var(--spacing-lg) var(--spacing-lg) 0;
+  transform: translateX(-100%); /* 默认隐藏 */
+  transition: transform var(--transition-normal),
+    background-color var(--transition-normal);
+  z-index: 1000; /* 面板层级最高 */
+  overflow-y: auto;
+  box-sizing: border-box;
+  /* 隐藏滚动条 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  /* 确保面板底部边缘与时间控制器顶部精确对接 */
+  border-bottom: none;
+  margin-bottom: 0;
+  /* 确保面板内容不会溢出到底部，与时间控制器精确对齐 */
+  padding-bottom: 0;
+  max-height: calc(100vh - 15rem);
+  font-family: var(--font-family);
+  line-height: var(--line-height-normal);
+}
+
+/* 滚动条样式（仅在支持的浏览器中显示） */
+#planet-info-panel::-webkit-scrollbar {
+  width: 0.6rem;
+}
+
+#planet-info-panel::-webkit-scrollbar-track {
+  background: var(--panel-bg-dark);
+}
+
+#planet-info-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast);
+}
+
+#planet-info-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* 面板激活（向右拉出显示）状态 */
+#planet-info-panel.active {
+  transform: translateX(0); /* 向右拉出 */
+  box-shadow: var(--shadow-lg);
+}
+
+/* 移动端响应式调整 */
+@media (max-width: 76.8rem) {
+  #planet-info-panel {
+    height: calc(100vh - 20rem);
+    width: 100%; /* 在移动端使用全宽 */
+    padding: var(--spacing-md);
+    box-sizing: border-box;
+  }
+}
+
+/* 隐藏滚动条（保持兼容性） */
+#planet-info-panel.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 信息面板内部全屏效果 */
+#planet-info-panel.fullscreen {
+  width: 100vw; /* 全屏宽度 */
+  height: 100vh; /* 全屏高度 */
+  background: rgba(0, 0, 0, 0.7); /* 增加透明度 */
+  padding: 40px;
+  z-index: 2000; /* 确保在最高层级 */
+  overflow-y: auto;
+  /* 隐藏滚动条 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* 隐藏全屏模式下的WebKit滚动条 */
+#planet-info-panel.fullscreen::-webkit-scrollbar {
+  display: none;
+}
+
+/* 全屏模式下隐藏冗余元素 */
+#planet-info-panel.fullscreen .collapse-btn {
+  display: none; /* 隐藏收起按钮 */
+}
+
+/* 全屏模式下面板内容样式优化 */
+#planet-info-panel.fullscreen .info-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* 全屏模式下内容样式 */
+#planet-info-panel.fullscreen .info-content h2 {
+  font-size: 36px;
+  text-align: center;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #555;
+  padding-bottom: 20px;
+}
+
+#planet-info-panel.fullscreen .info-content h3 {
+  font-size: 24px;
+  color: #fff;
+  margin-top: 30px;
+  margin-bottom: 15px;
+}
+
+#planet-info-panel.fullscreen .info-content p {
+  font-size: 18px;
+  line-height: 1.8;
+  margin-bottom: 12px;
+}
+
+#planet-info-panel.fullscreen .more-info-btn {
+  width: 220px;
+  height: 54px;
+  font-size: 18px;
+  margin: 40px auto 0;
+  display: block;
+  border-radius: 27px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+#planet-info-panel.fullscreen #less-info-btn {
+  width: 250px;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  height: 54px;
+  font-size: 18px;
+  border-radius: 27px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* 面板头部 */
+.panel-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--border-color);
+  height: 4rem; /* 为绝对定位的按钮留出空间 */
+}
+
+/* 统一按钮基础样式（拉出和拉回按钮共用） */
+#pull-out-btn,
+.collapse-btn {
+  width: 4rem;
+  height: 4rem;
+  background: var(--panel-bg-dark);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 1.6rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-fast);
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* 按钮焦点样式 */
+#pull-out-btn:focus,
+.collapse-btn:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(0, 188, 212, 0.3);
+}
+
+/* 拉回按钮单独定位（在面板内右上角） */
+.collapse-btn {
+  position: absolute; /* 绝对定位在面板头部 */
+  right: var(--spacing-md);
+  top: var(--spacing-md);
+  z-index: 1001; /* 确保在面板内容上方 */
+}
+
+/* 拉出按钮单独定位（场景左上角） */
+#pull-out-btn {
+  position: absolute;
+  left: 2rem; /* 20px / 10 */
+  top: 2rem; /* 20px / 10 */
+  z-index: 100; /* 高于场景，低于面板 */
+}
+
+/* 按钮悬停效果（统一） */
+#pull-out-btn:hover,
+.collapse-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 关键：面板拉出（active状态）时，隐藏「向右拉出按钮」 */
+#planet-info-panel.active ~ #pull-out-btn {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none; /* 隐藏时无法点击 */
+}
+
+/* 面板内容样式 */
+.info-content h2 {
+  margin: 0 0 var(--spacing-lg);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--accent-color);
+  font-size: var(--font-size-xxl);
+  font-weight: 700;
+  line-height: var(--line-height-tight);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.description {
+  line-height: var(--line-height-relaxed);
+  color: var(--text-secondary);
+  padding: var(--spacing-md) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: var(--spacing-lg);
+  font-size: var(--font-size-md);
+}
+
+.info-section {
+  margin: var(--spacing-lg) 0;
+  padding: var(--spacing-md);
+  background: var(--panel-bg-light);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-normal);
+  position: relative;
+  z-index: 1;
+}
+
+.info-section:hover {
+  background: var(--panel-bg-medium);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.info-section h3 {
+  margin: 0 0 var(--spacing-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  line-height: var(--line-height-tight);
+  display: flex;
+  align-items: center;
+}
+
+/* 添加标题装饰 */
+.info-section h3::before {
+  content: "";
+  display: inline-block;
+  width: 0.4rem;
+  height: 1.6rem;
+  background: var(--accent-color);
+  border-radius: var(--radius-sm);
+  margin-right: var(--spacing-sm);
+  opacity: 0.8;
+}
+
+.info-content p {
+  margin: var(--spacing-xs) 0;
+  line-height: var(--line-height-relaxed);
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+/* 数据对齐样式 */
+.info-content p strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  min-width: 12rem;
+  flex-shrink: 0;
+}
+
+.info-content p span {
+  text-align: right;
+  color: var(--text-tertiary);
+  font-weight: 400;
+  flex-shrink: 1;
+  flex-grow: 1;
+  margin-left: var(--spacing-md);
+}
+/* 浏览器全屏相关样式 */
+:fullscreen #pull-out-btn,
+:-webkit-full-screen #pull-out-btn,
+:-ms-fullscreen #pull-out-btn {
+  display: none !important;
+}
+
+:fullscreen #planet-info-panel,
+:-webkit-full-screen #planet-info-panel,
+:-ms-fullscreen #planet-info-panel {
+  width: 100vw;
+  height: 100vh;
+  transform: translateX(0) !important;
+  background: rgba(0, 0, 0, 0.95);
+  padding: 40px;
+  z-index: 9999;
+}
+
+:fullscreen .info-content,
+:-webkit-full-screen .info-content,
+:-ms-fullscreen .info-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* 复用全屏模式下的内容样式 */
+:fullscreen .info-content h2,
+:-webkit-full-screen .info-content h2,
+:-ms-fullscreen .info-content h2 {
+  font-size: 36px;
+  text-align: center;
+  margin-bottom: 30px;
+  border-bottom: 2px solid #555;
+  padding-bottom: 20px;
+}
+
+:fullscreen .info-content h3,
+:-webkit-full-screen .info-content h3,
+:-ms-fullscreen .info-content h3 {
+  font-size: 24px;
+  color: #fff;
+  margin-top: 30px;
+  margin-bottom: 15px;
+}
+
+:fullscreen .info-content p,
+:-webkit-full-screen .info-content p,
+:-ms-fullscreen .info-content p {
+  font-size: 18px;
+  line-height: 1.8;
+  margin-bottom: 12px;
+}
+
+:fullscreen .more-info-btn,
+:-webkit-full-screen .more-info-btn,
+:-ms-fullscreen .more-info-btn {
+  width: 200px;
+  height: 50px;
+  font-size: 18px;
+  margin-top: 40px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 全屏按钮样式优化 */
+#fullscreen-btn {
+  width: 6rem;
+  height: 6rem;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0.2rem 1rem rgba(0, 0, 0, 0.5);
+}
+
+/* 手机响应式优化 - 信息面板内部全屏模式 */
+@media (max-width: 768px) {
+  #planet-info-panel.fullscreen {
+    padding: 1.25rem;
+  }
+
+  #planet-info-panel.fullscreen .info-content h2 {
+    font-size: 1.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  #planet-info-panel.fullscreen .info-content h3 {
+    font-size: 1.25rem;
+  }
+
+  #planet-info-panel.fullscreen .info-content p {
+    font-size: 1rem;
+  }
+}
+
+/* 更多信息按钮默认样式 */
+.more-info-btn {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-top: var(--spacing-lg);
+  background-color: transparent;
+  color: white;
+  border: 2px solid white;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: var(--shadow-md);
+  touch-action: manipulation;
+  user-select: none;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  white-space: nowrap;
+}
+
+/* 按钮焦点样式 */
+.more-info-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3), var(--shadow-md);
+}
+
+/* 按钮悬停效果 */
+.more-info-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  letter-spacing: 1px;
+}
+
+/* 按钮点击效果 */
+.more-info-btn:active {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+/* 返回基本信息按钮特殊样式 */
+#less-info-btn {
+  background-color: var(--primary-color);
+  width: 100%;
+  min-width: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+#less-info-btn:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  letter-spacing: 1px;
+}
+
+#less-info-btn:active {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+#less-info-btn:focus {
+  box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.3), var(--shadow-md);
+}
+
+/* 按钮内部元素样式 */
+#less-info-btn span {
+  line-height: 1;
+}
+
+#less-info-btn .btn-arrow {
+  font-size: var(--font-size-lg);
+  font-weight: bold;
+  transition: transform var(--transition-normal);
+}
+
+#less-info-btn .btn-text {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+}
+
+#less-info-btn:hover .btn-arrow {
+  transform: translateX(-2px);
+}
+
+/* 适配手机屏幕的基础样式 */
+@media (max-width: 768px) {
+  #planet-info-panel {
+    touch-action: pan-y; /* 允许垂直滚动，但防止水平滑动干扰 */
+  }
+
+  #universe-container {
+    width: 100vw !important;
+    height: 100vh !important;
+  }
+
+  /* 手机全屏模式下的样式调整 */
+  :fullscreen .info-content h2,
+  :-webkit-full-screen .info-content h2,
+  :-ms-fullscreen .info-content h2 {
+    font-size: 2.8rem;
+  }
+
+  :fullscreen .info-content h3,
+  :-webkit-full-screen .info-content h3,
+  :-ms-fullscreen .info-content h3 {
+    font-size: 2rem;
+  }
+
+  :fullscreen .info-content p,
+  :-webkit-full-screen .info-content p,
+  :-ms-fullscreen .info-content p {
+    font-size: 1.6rem;
+  }
+
+  /* 调整按钮尺寸，使其更适合触摸 */
+  #pull-out-btn {
+    left: 1.5rem;
+    top: 1.5rem;
+    /* 增加触摸区域 */
+    padding: 0.5rem;
+    margin: -0.5rem;
+  }
+
+  .collapse-btn {
+    right: 1.5rem;
+    top: 1.5rem;
+    /* 增加触摸区域 */
+    padding: 0.5rem;
+    margin: -0.5rem;
+  }
+
+  /* 面板内容字体调整 */
+  .info-content h2 {
+    font-size: 2.4rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .info-section h3 {
+    font-size: 1.9rem;
+  }
+
+  .info-content p {
+    font-size: 1.8rem;
+    line-height: 1.6;
+  }
+
+  /* 移动端点击效果 */
+  .more-info-btn {
+    padding: 1.5rem 2rem;
+    font-size: 1.7rem;
+    margin-top: 2.5rem;
+    min-height: 55px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #less-info-btn {
+    gap: 10px;
+  }
+
+  #less-info-btn::before {
+    font-size: 2rem;
+  }
+}
+
+/* 小屏手机适配 */
+@media (max-width: 48rem) {
+  #planet-info-panel {
+    height: calc(100vh - 22rem);
+    max-height: calc(100vh - 22rem);
+  }
+
+  /* 小屏手机下的按钮调整 */
+  #pull-out-btn {
+    width: 4.5rem;
+    height: 4.5rem;
+    font-size: 2rem;
+    left: 1rem;
+    top: 1rem;
+    /* 增加触摸区域 */
+    padding: 1rem;
+    margin: -1rem;
+  }
+
+  .collapse-btn {
+    width: 4.5rem;
+    height: 4.5rem;
+    font-size: 2rem;
+    right: 1rem;
+    top: 1rem;
+    /* 增加触摸区域 */
+    padding: 1rem;
+    margin: -1rem;
+  }
+
+  /* 小屏标签页优化 */
+  .info-tabs-content {
+    max-height: 25rem;
+  }
+
+  .info-tab-content {
+    padding: 0 1rem;
+  }
+
+  /* 优化标签按钮 */
+  .info-tab-btn {
+    padding: 1.2rem 1.5rem;
+    font-size: 0.9rem;
+    min-width: fit-content;
+  }
+
+  /* 优化信息区块间距 */
+  .info-section {
+    margin: 1.5rem 0;
+    padding-bottom: 1.2rem;
+  }
+
+  /* 移动端数据值对齐 */
+  .info-section p span {
+    display: block;
+    text-align: left;
+    margin-left: 0;
+    margin-top: 0.2rem;
+    color: var(--text-primary);
+  }
+
+  /* 移动端详细信息样式 */
+  .info-detail {
+    font-size: 0.95rem;
+    line-height: var(--line-height-normal);
+  }
+}
+
+/* 平板横屏适配 */
+@media (min-width: 76.9rem) and (max-width: 102.4rem) and (orientation: landscape) {
+  #planet-info-panel {
+    width: 30rem;
+    height: calc(100vh - 12rem);
+  }
+
+  /* 平板横屏下按钮调整 */
+  #pull-out-btn {
+    width: 4rem;
+    height: 4rem;
+    font-size: 1.6rem;
+    left: 1rem;
+    top: 1rem;
+  }
+
+  .collapse-btn {
+    width: 4rem;
+    height: 4rem;
+    font-size: 1.6rem;
+    right: 1rem;
+    top: 1rem;
+  }
+
+  /* 平板横屏下字体调整 */
+  .info-content h2 {
+    font-size: 2.2rem;
+  }
+
+  .info-section h3 {
+    font-size: 1.6rem;
+  }
+
+  .info-content p {
+    font-size: 1.4rem;
+  }
+}
+
+/* 标签页容器样式 */
+.info-tabs-container {
+  margin: var(--spacing-lg) 0;
+  background: var(--panel-bg-dark);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+/* 标签页导航样式 */
+.info-tabs-nav {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  background: var(--panel-bg-dark);
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* 隐藏导航滚动条 */
+.info-tabs-nav::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+/* 标签页按钮样式 */
+.info-tab-btn {
+  flex: 0 0 auto;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  white-space: nowrap;
+  border-bottom: 3px solid transparent;
+  position: relative;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+/* 标签页按钮悬停效果 */
+.info-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--panel-bg-medium);
+}
+
+/* 标签页按钮激活状态 */
+.info-tab-btn.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-color);
+  background: rgba(0, 188, 212, 0.1);
+}
+
+/* 标签页内容区域 */
+.info-tabs-content {
+  background-color: var(--panel-bg-light);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  box-shadow: var(--shadow-sm);
+  overflow-x: hidden;
+  max-height: 40rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+/* 数据值容器样式，用于对齐 */
+.info-section p span {
+  display: inline-block;
+  margin-left: auto;
+  text-align: right;
+  font-weight: normal;
+  color: var(--accent-color);
+}
+
+/* 详细信息容器样式 */
+.info-detail {
+  line-height: var(--line-height-relaxed);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  margin-top: 0.8rem;
+}
+
+/* 提示信息样式 */
+.info-notice {
+  font-style: italic;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 1.2rem 0;
+}
+
+/* 单个标签页内容 */
+.info-tab-content {
+  display: none;
+  padding: 0 var(--spacing-md);
+}
+
+/* 激活的标签页内容显示 */
+.info-tab-content.active {
+  display: block;
+  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 标签页内容淡入动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 标签页相关的信息区块样式 */
+.info-tab-content .info-section {
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background: var(--panel-bg-light);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-normal);
+}
+
+.info-tab-content .info-section:hover {
+  background: var(--panel-bg-medium);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.info-tab-content .info-section h4 {
+  margin-top: 0;
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: var(--spacing-xs);
+  display: flex;
+  align-items: center;
+}
+
+/* 二级标题装饰 */
+.info-tab-content .info-section h4::before {
+  content: "";
+  display: inline-block;
+  width: 0.3rem;
+  height: 1.2rem;
+  background: var(--success-color);
+  border-radius: var(--radius-sm);
+  margin-right: var(--spacing-xs);
+  opacity: 0.7;
+}
+
+/* 全屏模式下的标签页样式优化 */
+#planet-info-panel.fullscreen .info-tabs-nav {
+  background: rgba(0, 0, 0, 0.5);
+  border-bottom: 0.2rem solid #444;
+}
+
+#planet-info-panel.fullscreen .info-tab-btn {
+  font-size: 1em;
+  padding: 1.2rem 2rem;
+}
+
+#planet-info-panel.fullscreen .info-tabs-content {
+  max-height: 60rem;
+}
+
+#planet-info-panel.fullscreen .info-tab-content .info-section {
+  padding: 2rem;
+  margin-bottom: 2.5rem;
+}
+
+/* 标签页响应式设计 */
+@media screen and (max-width: 76.8rem) {
+  .info-tab-btn {
+    padding: 0.8rem 1.2rem;
+    font-size: 0.85em;
+  }
+
+  .info-tabs-content {
+    max-height: 30rem;
+  }
+
+  .info-tab-content .info-section {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+}
+
+/* 移动端标签页优化 */
+@media screen and (max-width: 48rem) {
+  .info-tab-btn {
+    padding: 0.8rem 1rem;
+    font-size: 0.8em;
+  }
+
+  .info-tabs-content {
+    max-height: 25rem;
+  }
+}
+
+/* dat.GUI控制面板滚动条隐藏 */
+.dg.main,
+.dg,
+.dg.main .close-button,
+#dat-gui-container,
+.dg.ac {
+  overflow: hidden !important;
+  scrollbar-width: none !important; /* Firefox */
+}
+
+/* 添加dat.GUI容器的显式样式 */
+#dat-gui-container {
+  position: absolute !important;
+  top: 10px !important;
+  right: 10px !important;
+  z-index: 1000 !important;
+  display: block !important;
+}
+
+.dg.main::-webkit-scrollbar,
+.dg::-webkit-scrollbar,
+.dg.main .close-button::-webkit-scrollbar,
+#dat-gui-container::-webkit-scrollbar,
+.dg.ac::-webkit-scrollbar,
+.dg .c::-webkit-scrollbar,
+.dg .cr::-webkit-scrollbar,
+.dg .closed::-webkit-scrollbar,
+.dg li::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Edge */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.dg .c,
+.dg .cr,
+.dg .closed,
+.dg li {
+  overflow: visible !important;
+  scrollbar-width: none !important;
+}
+
+.dg .property-name {
+  overflow: hidden !important;
+}
+
+.dg .property-name {
+  overflow: hidden !important;
+}

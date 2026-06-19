@@ -1,0 +1,2353 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>星穹漫游 — 3D交互式太阳系天文科普平台</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        background: #050514;
+        color: #e0e0f0;
+        overflow-x: hidden;
+        line-height: 1.6;
+      }
+
+      /* ============ 通用 ============ */
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      section {
+        padding: 100px 0;
+        position: relative;
+      }
+      .section-tag {
+        display: inline-block;
+        padding: 5px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 16px;
+      }
+      .tag-blue {
+        background: rgba(74, 108, 247, 0.15);
+        color: #6a8cff;
+        border: 1px solid rgba(74, 108, 247, 0.3);
+      }
+      .tag-orange {
+        background: rgba(255, 160, 50, 0.15);
+        color: #ffa032;
+        border: 1px solid rgba(255, 160, 50, 0.3);
+      }
+      .tag-green {
+        background: rgba(80, 200, 120, 0.15);
+        color: #50c878;
+        border: 1px solid rgba(80, 200, 120, 0.3);
+      }
+      .tag-purple {
+        background: rgba(160, 100, 255, 0.15);
+        color: #a064ff;
+        border: 1px solid rgba(160, 100, 255, 0.3);
+      }
+      .tag-red {
+        background: rgba(255, 80, 80, 0.15);
+        color: #ff6464;
+        border: 1px solid rgba(255, 80, 80, 0.3);
+      }
+      .tag-gold {
+        background: rgba(255, 215, 0, 0.15);
+        color: #ffd700;
+        border: 1px solid rgba(255, 215, 0, 0.3);
+      }
+
+      h2 {
+        font-size: clamp(30px, 4.5vw, 48px);
+        font-weight: 800;
+        margin-bottom: 18px;
+        color: #f0f0ff;
+        letter-spacing: 1px;
+      }
+      h2 .accent {
+        background: linear-gradient(135deg, #ffd700, #ff8c00, #ff6347);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .section-desc {
+        font-size: 17px;
+        color: #9090b0;
+        line-height: 1.8;
+        max-width: 760px;
+        margin-bottom: 56px;
+      }
+
+      /* ============ Hero ============ */
+      .hero {
+        position: relative;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        overflow: hidden;
+      }
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(
+            ellipse at 30% 20%,
+            rgba(74, 108, 247, 0.15) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            ellipse at 70% 80%,
+            rgba(160, 100, 255, 0.12) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            ellipse at 50% 50%,
+            rgba(30, 60, 120, 0.2) 0%,
+            rgba(5, 5, 20, 1) 70%
+          );
+        z-index: 0;
+      }
+      .stars {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+      }
+      .star {
+        position: absolute;
+        background: #fff;
+        border-radius: 50%;
+        animation: twinkle 3s infinite alternate;
+      }
+      @keyframes twinkle {
+        0% {
+          opacity: 0.2;
+          transform: scale(0.8);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1.2);
+        }
+      }
+      .hero-content {
+        position: relative;
+        z-index: 1;
+        padding: 0 24px;
+      }
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 20px;
+        border: 1px solid rgba(100, 160, 255, 0.4);
+        border-radius: 24px;
+        font-size: 13px;
+        color: #8ab4ff;
+        margin-bottom: 28px;
+        background: rgba(100, 160, 255, 0.08);
+        backdrop-filter: blur(10px);
+      }
+      .hero-badge .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #4ade80;
+        box-shadow: 0 0 10px #4ade80;
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+      .hero h1 {
+        font-size: clamp(48px, 9vw, 110px);
+        font-weight: 900;
+        letter-spacing: 4px;
+        margin-bottom: 20px;
+        background: linear-gradient(
+          135deg,
+          #ffd700 0%,
+          #ff8c00 50%,
+          #ff6347 100%
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1.1;
+      }
+      .hero-subtitle {
+        font-size: clamp(15px, 2vw, 19px);
+        color: #8ab4ff;
+        letter-spacing: 6px;
+        margin-bottom: 28px;
+        font-weight: 300;
+      }
+      .hero p {
+        font-size: clamp(16px, 2.2vw, 21px);
+        color: #a0a8c8;
+        max-width: 720px;
+        line-height: 1.8;
+        margin-bottom: 40px;
+      }
+      .hero-cta-group {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .hero-cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 15px 38px;
+        background: linear-gradient(135deg, #4a6cf7, #6a3de8);
+        border: none;
+        border-radius: 12px;
+        color: #fff;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          transform 0.25s,
+          box-shadow 0.25s;
+        text-decoration: none;
+      }
+      .hero-cta:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 36px rgba(74, 108, 247, 0.5);
+      }
+      .hero-cta.secondary {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(10px);
+      }
+      .hero-cta.secondary:hover {
+        background: rgba(255, 255, 255, 0.12);
+        box-shadow: 0 12px 36px rgba(255, 255, 255, 0.1);
+      }
+      .hero-stats {
+        display: flex;
+        gap: 48px;
+        margin-top: 64px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .hero-stat {
+        text-align: center;
+      }
+      .hero-stat-num {
+        font-size: 36px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #ffd700, #ff8c00);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .hero-stat-label {
+        font-size: 13px;
+        color: #6a7aa8;
+        margin-top: 4px;
+        letter-spacing: 1px;
+      }
+      .scroll-hint {
+        position: absolute;
+        bottom: 32px;
+        z-index: 1;
+        animation: bounce 2s infinite;
+        color: #6a7aa8;
+        font-size: 13px;
+        letter-spacing: 2px;
+      }
+      @keyframes bounce {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(10px);
+        }
+      }
+
+      /* ============ 功能卡片 ============ */
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 24px;
+      }
+      .feature-card {
+        background: linear-gradient(
+          145deg,
+          rgba(20, 20, 40, 0.8),
+          rgba(15, 15, 30, 0.8)
+        );
+        border: 1px solid rgba(100, 120, 180, 0.15);
+        border-radius: 18px;
+        padding: 34px 30px;
+        transition:
+          transform 0.3s,
+          border-color 0.3s,
+          box-shadow 0.3s;
+        position: relative;
+        overflow: hidden;
+      }
+      .feature-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--card-accent, #4a6cf7),
+          transparent
+        );
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .feature-card:hover {
+        transform: translateY(-6px);
+        border-color: var(--card-accent, rgba(100, 160, 255, 0.4));
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+      }
+      .feature-card:hover::before {
+        opacity: 1;
+      }
+      .feature-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        margin-bottom: 20px;
+        background: var(--icon-bg, rgba(74, 108, 247, 0.15));
+      }
+      .feature-card h3 {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        color: #f0f0ff;
+      }
+      .feature-card p {
+        font-size: 14px;
+        color: #9090b0;
+        line-height: 1.75;
+      }
+      .feature-card .feature-meta {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(100, 120, 180, 0.1);
+        font-size: 12px;
+        color: #6a8cff;
+        letter-spacing: 0.5px;
+      }
+
+      /* ============ 天体展示 ============ */
+      .celestial-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 20px;
+      }
+      .celestial-card {
+        background: rgba(15, 15, 35, 0.7);
+        border: 1px solid rgba(100, 120, 180, 0.12);
+        border-radius: 16px;
+        padding: 24px;
+        transition: all 0.3s;
+        position: relative;
+        overflow: hidden;
+      }
+      .celestial-card:hover {
+        transform: translateY(-4px);
+        border-color: var(--planet-color, rgba(100, 160, 255, 0.5));
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+      }
+      .celestial-visual {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        margin: 0 auto 18px;
+        background: var(
+          --planet-gradient,
+          radial-gradient(circle at 30% 30%, #4a90d9, #1a3a6a)
+        );
+        box-shadow:
+          0 0 30px var(--planet-glow, rgba(74, 144, 217, 0.4)),
+          inset -10px -10px 20px rgba(0, 0, 0, 0.4);
+        position: relative;
+      }
+      .celestial-visual.has-ring::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 130%;
+        height: 18px;
+        transform: translate(-50%, -50%) rotateX(75deg);
+        border: 3px solid var(--planet-color, rgba(200, 180, 140, 0.6));
+        border-radius: 50%;
+        box-shadow: 0 0 10px var(--planet-glow, rgba(200, 180, 140, 0.4));
+      }
+      .celestial-card h3 {
+        font-size: 18px;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 4px;
+        color: #f0f0ff;
+      }
+      .celestial-card .celestial-en {
+        text-align: center;
+        font-size: 11px;
+        color: #6a7aa8;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+      }
+      .celestial-card .celestial-desc {
+        font-size: 13px;
+        color: #9090b0;
+        line-height: 1.65;
+        margin-bottom: 14px;
+      }
+      .celestial-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        font-size: 11px;
+      }
+      .celestial-stat {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 6px 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(100, 120, 180, 0.08);
+      }
+      .celestial-stat-label {
+        color: #6a7aa8;
+        display: block;
+        font-size: 10px;
+      }
+      .celestial-stat-value {
+        color: #c0c0d8;
+        font-weight: 600;
+      }
+
+      /* ============ 算法流程 ============ */
+      .algo-section {
+        background: linear-gradient(
+          145deg,
+          rgba(20, 20, 45, 0.6),
+          rgba(10, 10, 25, 0.6)
+        );
+        border-radius: 24px;
+        padding: 48px;
+        border: 1px solid rgba(100, 120, 180, 0.12);
+      }
+      .algo-flow {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 20px;
+        margin-top: 36px;
+        position: relative;
+      }
+      .algo-step {
+        background: rgba(15, 15, 35, 0.8);
+        border: 1px solid rgba(80, 200, 120, 0.2);
+        border-radius: 14px;
+        padding: 24px;
+        position: relative;
+        transition: all 0.3s;
+      }
+      .algo-step:hover {
+        border-color: rgba(80, 200, 120, 0.5);
+        transform: translateY(-3px);
+      }
+      .algo-step-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #50c878, #2a9d5a);
+        color: #fff;
+        font-weight: 700;
+        font-size: 14px;
+        margin-bottom: 14px;
+      }
+      .algo-step h4 {
+        font-size: 16px;
+        color: #e0e0f0;
+        margin-bottom: 8px;
+        font-weight: 600;
+      }
+      .algo-step p {
+        font-size: 13px;
+        color: #9090b0;
+        line-height: 1.7;
+      }
+      .algo-step code {
+        display: block;
+        margin-top: 10px;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.4);
+        border-radius: 6px;
+        font-family: "Consolas", "Monaco", monospace;
+        font-size: 11px;
+        color: #88ccaa;
+        border-left: 2px solid #50c878;
+      }
+      .algo-precision {
+        margin-top: 36px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 20px;
+      }
+      .precision-item {
+        text-align: center;
+        padding: 24px;
+        background: rgba(80, 200, 120, 0.06);
+        border-radius: 14px;
+        border: 1px solid rgba(80, 200, 120, 0.15);
+      }
+      .precision-num {
+        font-size: 42px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #50c878, #2a9d5a);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .precision-label {
+        font-size: 13px;
+        color: #9090b0;
+        margin-top: 6px;
+      }
+
+      /* ============ 时间控制器 ============ */
+      .time-controller-demo {
+        background: rgba(10, 10, 30, 0.8);
+        border-radius: 20px;
+        border: 1px solid rgba(100, 120, 180, 0.15);
+        padding: 40px;
+        margin-top: 36px;
+      }
+      .time-slider-demo {
+        position: relative;
+        height: 60px;
+        margin: 32px 0;
+      }
+      .time-track {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 6px;
+        background: linear-gradient(
+          90deg,
+          rgba(255, 68, 68, 0.3) 0%,
+          rgba(255, 68, 68, 0.6) 30%,
+          rgba(158, 158, 158, 0.8) 50%,
+          rgba(33, 150, 243, 0.6) 70%,
+          rgba(33, 150, 243, 0.3) 100%
+        );
+        border-radius: 3px;
+        transform: translateY(-50%);
+      }
+      .time-thumb {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #9e9e9e;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 20px rgba(158, 158, 158, 0.6);
+        border: 3px solid #fff;
+      }
+      .time-labels {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: space-between;
+        margin-top: 12px;
+        font-size: 11px;
+        color: #6a7aa8;
+      }
+      .time-label-center {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translate(-50%, -100%);
+        font-size: 12px;
+        color: #9e9e9e;
+        font-weight: 600;
+        margin-top: -8px;
+      }
+      .time-controls-demo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        margin-top: 24px;
+        flex-wrap: wrap;
+      }
+      .time-btn-demo {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: rgba(30, 30, 60, 0.8);
+        border: 1px solid rgba(100, 120, 180, 0.2);
+        color: #c0c0d8;
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+      .time-btn-demo:hover {
+        background: rgba(74, 108, 247, 0.2);
+        border-color: rgba(74, 108, 247, 0.5);
+      }
+      .time-btn-demo.live {
+        width: auto;
+        padding: 0 20px;
+        background: rgba(76, 175, 80, 0.15);
+        border-color: rgba(76, 175, 80, 0.4);
+        color: #4ade80;
+        font-weight: 600;
+        gap: 8px;
+      }
+      .time-btn-demo.live .live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #4ade80;
+        box-shadow: 0 0 10px #4ade80;
+        animation: pulse 2s infinite;
+      }
+      .time-features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-top: 32px;
+      }
+      .time-feature {
+        padding: 16px 20px;
+        background: rgba(30, 30, 60, 0.4);
+        border-radius: 10px;
+        border-left: 3px solid #4a6cf7;
+        font-size: 13px;
+        color: #c0c0d8;
+      }
+      .time-feature strong {
+        display: block;
+        color: #f0f0ff;
+        margin-bottom: 4px;
+        font-size: 14px;
+      }
+
+      /* ============ 信息面板 ============ */
+      .info-panel-demo {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 32px;
+        margin-top: 36px;
+      }
+      .panel-mockup {
+        background: rgba(15, 15, 35, 0.9);
+        border: 1px solid rgba(100, 120, 180, 0.2);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+      .panel-mockup-header {
+        padding: 16px 20px;
+        background: linear-gradient(
+          135deg,
+          rgba(74, 108, 247, 0.2),
+          rgba(106, 61, 232, 0.2)
+        );
+        border-bottom: 1px solid rgba(100, 120, 180, 0.15);
+      }
+      .panel-mockup-header h4 {
+        font-size: 18px;
+        color: #f0f0ff;
+        font-weight: 700;
+        letter-spacing: 1px;
+      }
+      .panel-mockup-body {
+        padding: 20px;
+      }
+      .panel-mockup-section {
+        margin-bottom: 18px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid rgba(100, 120, 180, 0.08);
+      }
+      .panel-mockup-section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+      }
+      .panel-mockup-section h5 {
+        font-size: 13px;
+        color: #6a8cff;
+        margin-bottom: 10px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+      .panel-mockup-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        font-size: 13px;
+      }
+      .panel-mockup-row .label {
+        color: #9090b0;
+      }
+      .panel-mockup-row .value {
+        color: #e0e0f0;
+        font-weight: 500;
+      }
+      .panel-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 14px;
+      }
+      .panel-tab {
+        padding: 5px 12px;
+        background: rgba(74, 108, 247, 0.15);
+        border: 1px solid rgba(74, 108, 247, 0.3);
+        border-radius: 6px;
+        font-size: 11px;
+        color: #6a8cff;
+      }
+      .panel-tab.active {
+        background: rgba(74, 108, 247, 0.3);
+        color: #fff;
+      }
+
+      /* ============ 痛点 ============ */
+      .pain-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 24px;
+      }
+      .pain-card {
+        background: linear-gradient(
+          145deg,
+          rgba(40, 20, 30, 0.7),
+          rgba(20, 15, 25, 0.7)
+        );
+        border: 1px solid rgba(200, 80, 80, 0.2);
+        border-radius: 16px;
+        padding: 30px;
+      }
+      .pain-card .pain-icon {
+        font-size: 28px;
+        margin-bottom: 14px;
+      }
+      .pain-card h3 {
+        font-size: 17px;
+        color: #ff8888;
+        margin-bottom: 12px;
+        font-weight: 600;
+      }
+      .pain-card .pain-desc {
+        font-size: 14px;
+        color: #a0a0b0;
+        line-height: 1.7;
+        margin-bottom: 16px;
+      }
+      .pain-card .solution {
+        padding: 14px;
+        background: rgba(80, 200, 120, 0.08);
+        border-left: 3px solid #50c878;
+        border-radius: 6px;
+        color: #88ccaa;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+      .pain-card .solution strong {
+        color: #50c878;
+      }
+
+      /* ============ 技术架构 ============ */
+      .tech-section {
+        background: linear-gradient(
+          145deg,
+          rgba(15, 15, 35, 0.7),
+          rgba(10, 10, 25, 0.7)
+        );
+        border-radius: 24px;
+        padding: 48px;
+        border: 1px solid rgba(100, 120, 180, 0.12);
+      }
+      .tech-arch {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 24px;
+        margin-top: 36px;
+      }
+      .tech-layer {
+        background: rgba(20, 20, 40, 0.6);
+        border: 1px solid rgba(100, 120, 180, 0.1);
+        border-radius: 14px;
+        padding: 24px;
+      }
+      .tech-layer h4 {
+        font-size: 15px;
+        color: #f0f0ff;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(100, 120, 180, 0.1);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .tech-layer h4 .layer-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: rgba(74, 108, 247, 0.2);
+        color: #6a8cff;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .tech-list {
+        list-style: none;
+      }
+      .tech-list li {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+        font-size: 13px;
+        color: #c0c0d8;
+      }
+      .tech-list li .tech-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      /* ============ 数据表 ============ */
+      .data-table-wrap {
+        overflow-x: auto;
+        margin-top: 36px;
+        border-radius: 16px;
+        border: 1px solid rgba(100, 120, 180, 0.15);
+      }
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 800px;
+      }
+      .data-table th {
+        background: rgba(30, 30, 60, 0.8);
+        padding: 14px 16px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 700;
+        color: #8ab4ff;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        border-bottom: 1px solid rgba(100, 120, 180, 0.2);
+      }
+      .data-table td {
+        padding: 12px 16px;
+        font-size: 13px;
+        color: #c0c0d8;
+        border-bottom: 1px solid rgba(100, 120, 180, 0.08);
+      }
+      .data-table tr:hover td {
+        background: rgba(74, 108, 247, 0.05);
+      }
+      .data-table .planet-name {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        color: #f0f0ff;
+      }
+      .data-table .planet-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        box-shadow: 0 0 8px currentColor;
+      }
+
+      /* ============ 价值 ============ */
+      .value-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 28px;
+      }
+      .value-card {
+        background: linear-gradient(
+          145deg,
+          rgba(20, 20, 40, 0.7),
+          rgba(15, 15, 30, 0.7)
+        );
+        border: 1px solid rgba(100, 120, 180, 0.12);
+        border-radius: 18px;
+        padding: 40px 30px;
+        text-align: center;
+        transition: all 0.3s;
+      }
+      .value-card:hover {
+        transform: translateY(-6px);
+        border-color: rgba(255, 215, 0, 0.3);
+        box-shadow: 0 16px 40px rgba(255, 215, 0, 0.1);
+      }
+      .value-number {
+        font-size: 56px;
+        font-weight: 900;
+        background: linear-gradient(135deg, #ffd700, #ff8c00);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 10px;
+        line-height: 1;
+      }
+      .value-card h3 {
+        font-size: 19px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        color: #f0f0ff;
+      }
+      .value-card p {
+        font-size: 14px;
+        color: #9090b0;
+        line-height: 1.75;
+      }
+
+      /* ============ Footer ============ */
+      .footer {
+        text-align: center;
+        padding: 64px 24px;
+        border-top: 1px solid rgba(100, 120, 180, 0.1);
+        background: rgba(5, 5, 15, 0.6);
+      }
+      .footer .brand {
+        font-size: 24px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #ffd700, #ff8c00);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 10px;
+        letter-spacing: 2px;
+      }
+      .footer p {
+        color: #6a7aa8;
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+      .footer .footer-meta {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(100, 120, 180, 0.08);
+        font-size: 12px;
+        color: #555;
+      }
+
+      @media (max-width: 768px) {
+        section {
+          padding: 64px 0;
+        }
+        .info-panel-demo {
+          grid-template-columns: 1fr;
+        }
+        .hero-stats {
+          gap: 28px;
+        }
+        .algo-section,
+        .tech-section {
+          padding: 28px 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ============ Hero ============ -->
+    <div class="hero" id="hero">
+      <div class="stars" id="stars"></div>
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span class="dot"></span>
+          TRAE AI 创造力大赛 · 学习工作赛道
+        </div>
+        <h1>星穹漫游</h1>
+        <div class="hero-subtitle">STELLAR · ODYSSEY</div>
+        <p>
+          3D交互式太阳系天文科普平台 —
+          打开浏览器，指尖探索宇宙。基于精确天文算法，让行星运动与真实时间同步，独创日下点差量校准法实现地球日照与UTC时间精确对齐。
+        </p>
+        <div class="hero-cta-group">
+          <a class="hero-cta" href="#features">探索功能 ↓</a>
+          <a class="hero-cta secondary" href="#algorithm">核心算法 ↓</a>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <div class="hero-stat-num">10</div>
+            <div class="hero-stat-label">天体系统</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-num">57</div>
+            <div class="hero-stat-label">时间档位</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-num">&lt;5°</div>
+            <div class="hero-stat-label">校准误差</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-num">0</div>
+            <div class="hero-stat-label">安装门槛</div>
+          </div>
+        </div>
+      </div>
+      <div class="scroll-hint">向下滚动 ↓</div>
+    </div>
+
+    <!-- ============ 核心功能 ============ -->
+    <section id="features">
+      <div class="container">
+        <div class="section-tag tag-blue">核心功能</div>
+        <h2>用<span class="accent">3D交互</span>重新定义天文科普</h2>
+        <p class="section-desc">
+          星穹漫游不是简单的太阳系动画，而是一个天文精确、交互丰富、数据详实的3D可视化平台，让抽象的天文概念变得触手可及。
+        </p>
+        <div class="feature-grid">
+          <div
+            class="feature-card"
+            style="--card-accent: #4a6cf7; --icon-bg: rgba(74, 108, 247, 0.15)"
+          >
+            <div class="feature-icon">🪐</div>
+            <h3>完整天体系统3D渲染</h3>
+            <p>
+              基于Three.js
+              WebGL实时渲染，包含太阳、八大行星、月球共10个天体。配备真实纹理贴图（含地球法线贴图、高光贴图），土星、天王星、海王星均带光环系统，太阳带光晕Sprite。
+            </p>
+            <div class="feature-meta">
+              WebGL · 纹理贴图 · 光环系统 · 光晕特效
+            </div>
+          </div>
+          <div
+            class="feature-card"
+            style="--card-accent: #ff8c00; --icon-bg: rgba(255, 140, 0, 0.15)"
+          >
+            <div class="feature-icon">⏱️</div>
+            <h3>57档位时间控制器</h3>
+            <p>
+              独创以静止为中心的时间滑块：左侧28档回溯、右侧28档前进，从每秒6秒到每年。支持LIVE实时同步、播放/暂停、动态步长限制，可观察百年轨道变化或回溯历史天象。
+            </p>
+            <div class="feature-meta">
+              实时同步 · 双向调速 · 动态步长 · 折叠UI
+            </div>
+          </div>
+          <div
+            class="feature-card"
+            style="--card-accent: #50c878; --icon-bg: rgba(80, 200, 120, 0.15)"
+          >
+            <div class="feature-icon">🌍</div>
+            <h3>日下点差量校准法</h3>
+            <p>
+              独创算法：地球日照状态与UTC时间精确同步。通过测量模型日下点经度与真实值的差量，自动校准地球朝向，误差小于5°。让3D地球的昼夜分界线与现实完全对应。
+            </p>
+            <div class="feature-meta">
+              独创算法 · UTC同步 · 误差&lt;5° · 增量计算
+            </div>
+          </div>
+          <div
+            class="feature-card"
+            style="--card-accent: #a064ff; --icon-bg: rgba(160, 100, 255, 0.15)"
+          >
+            <div class="feature-icon">🔍</div>
+            <h3>智能搜索导航</h3>
+            <p>
+              输入天体名称即可搜索定位，支持中英文模糊匹配、键盘上下选择、回车确认。相机以缓动函数平滑飞行至目标，自动计算安全距离，确保不同大小天体在屏幕上显示一致。
+            </p>
+            <div class="feature-meta">
+              模糊匹配 · 键盘导航 · 缓动飞行 · 安全距离
+            </div>
+          </div>
+          <div
+            class="feature-card"
+            style="--card-accent: #ff6347; --icon-bg: rgba(255, 99, 71, 0.15)"
+          >
+            <div class="feature-icon">📋</div>
+            <h3>多标签页信息面板</h3>
+            <p>
+              点击行星标签弹出详细信息面板，包含7个标签页：物理特性、轨道参数、自转信息、卫星信息、历史发现、神话背景、探测历史。每个天体配有专属特殊信息（如火星殖民、月球探索等）。
+            </p>
+            <div class="feature-meta">
+              7大标签 · 专属信息 · 可折叠 · 全屏模式
+            </div>
+          </div>
+          <div
+            class="feature-card"
+            style="--card-accent: #00bcd4; --icon-bg: rgba(0, 188, 212, 0.15)"
+          >
+            <div class="feature-icon">📱</div>
+            <h3>全平台触屏适配</h3>
+            <p>
+              完整支持触屏手势：单指旋转、双指缩放、双指平移。针对移动端优化输入框缩放问题，自动管理viewport，手机平板均可流畅使用。信息面板激活时智能切换控制状态。
+            </p>
+            <div class="feature-meta">
+              触屏手势 · 防缩放 · 状态切换 · 响应式
+            </div>
+          </div>
+          <div
+            class="feature-card"
+            style="--card-accent: #ffd700; --icon-bg: rgba(255, 215, 0, 0.15)"
+          >
+            <div class="feature-icon">🎯</div>
+            <h3>智能视距剔除</h3>
+            <p>
+              根据天体大小和距离动态计算可见性，优化渲染性能。选中天体及其卫星始终保持可见。轨道线增量更新，每跨越1周时间才重建顶点，大幅降低CPU开销。
+            </p>
+            <div class="feature-meta">
+              动态剔除 · 增量更新 · 卫星保护 · 性能优化
+            </div>
+          </div>
+          <div
+            class="feature-card"
+            style="--card-accent: #e91e63; --icon-bg: rgba(233, 30, 99, 0.15)"
+          >
+            <div class="feature-icon">👁️</div>
+            <h3>射线检测标签遮挡</h3>
+            <p>
+              CSS2DRenderer标签系统配合Raycaster射线检测，当标签被其他天体遮挡时自动渐变透明，完全透明时禁用交互。轨道悬停高亮、点击聚焦、平滑缩放一应俱全。
+            </p>
+            <div class="feature-meta">
+              射线检测 · 渐变透明 · 轨道高亮 · 点击聚焦
+            </div>
+          </div>
+          <div
+            class="feature-card"
+            style="--card-accent: #4ade80; --icon-bg: rgba(74, 222, 128, 0.15)"
+          >
+            <div class="feature-icon">⚙️</div>
+            <h3>开普勒精确轨道</h3>
+            <p>
+              基于开普勒轨道方程求解，采用VSOP87部分参数。每个天体配置完整的轨道根数：半长轴、偏心率、轨道倾角、平近点角、近日点黄经、升交点黄经及其变化率，行星位置与NASA数据对齐。
+            </p>
+            <div class="feature-meta">
+              开普勒方程 · VSOP87 · 完整根数 · NASA对齐
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 天体系统 ============ -->
+    <section>
+      <div class="container">
+        <div class="section-tag tag-gold">天体系统</div>
+        <h2><span class="accent">10个天体</span>，各自独立又环环相扣</h2>
+        <p class="section-desc">
+          从中心的太阳到最远的海王星，每个天体都基于真实天文数据建模，配备专属科普资料。月球作为地球卫星，轨道层级嵌套正确。
+        </p>
+        <div class="celestial-grid">
+          <div
+            class="celestial-card"
+            style="
+              --planet-color: #ffd700;
+              --planet-gradient: radial-gradient(
+                circle at 30% 30%,
+                #fff5b8,
+                #ffd700,
+                #ff8c00
+              );
+              --planet-glow: rgba(255, 200, 0, 0.6);
+            "
+          >
+            <div class="celestial-visual"></div>
+            <h3>太阳</h3>
+            <div class="celestial-en">SUN</div>
+            <p class="celestial-desc">
+              太阳系中心恒星，黄矮星，通过氢核聚变产生能量，占太阳系总质量99.86%。
+            </p>
+            <div class="celestial-stats">
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">半径</span
+                ><span class="celestial-stat-value">69.6万km</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">表面温度</span
+                ><span class="celestial-stat-value">5500°C</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">质量</span
+                ><span class="celestial-stat-value">1989×10²⁴kg</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">重力</span
+                ><span class="celestial-stat-value">274 m/s²</span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="celestial-card"
+            style="
+              --planet-color: #eb3324;
+              --planet-gradient: radial-gradient(
+                circle at 30% 30%,
+                #d8a890,
+                #b08070,
+                #806050
+              );
+              --planet-glow: rgba(235, 51, 36, 0.4);
+            "
+          >
+            <div class="celestial-visual"></div>
+            <h3>水星</h3>
+            <div class="celestial-en">MERCURY</div>
+            <p class="celestial-desc">
+              最小且距太阳最近的行星，表面布满陨石坑，昼夜温差极大（-180°C至430°C）。
+            </p>
+            <div class="celestial-stats">
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轨道周期</span
+                ><span class="celestial-stat-value">0.24年</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">自转周期</span
+                ><span class="celestial-stat-value">1407.6h</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">偏心率</span
+                ><span class="celestial-stat-value">0.2056</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">卫星</span
+                ><span class="celestial-stat-value">无</span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="celestial-card"
+            style="
+              --planet-color: #ffff00;
+              --planet-gradient: radial-gradient(
+                circle at 30% 30%,
+                #fff8b0,
+                #e8d070,
+                #b89850
+              );
+              --planet-glow: rgba(255, 255, 0, 0.4);
+            "
+          >
+            <div class="celestial-visual"></div>
+            <h3>金星</h3>
+            <div class="celestial-en">VENUS</div>
+            <p class="celestial-desc">
+              最热的行星，被浓厚二氧化碳云层覆盖，表面467°C。逆向自转，有"地球姐妹星"之称。
+            </p>
+            <div class="celestial-stats">
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轨道周期</span
+                ><span class="celestial-stat-value">0.62年</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">自转周期</span
+                ><span class="celestial-stat-value">-5832.5h</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">反照率</span
+                ><span class="celestial-stat-value">0.75</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">大气压</span
+                ><span class="celestial-stat-value">92倍地球</span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="celestial-card"
+            style="
+              --planet-color: #3498db;
+              --planet-gradient: radial-gradient(
+                circle at 30% 30%,
+                #6ab0e8,
+                #3498db,
+                #1a5a8a
+              );
+              --planet-glow: rgba(52, 152, 219, 0.5);
+            "
+          >
+            <div class="celestial-visual"></div>
+            <h3>地球</h3>
+            <div class="celestial-en">EARTH</div>
+            <p class="celestial-desc">
+              唯一已知存在生命的行星，表面71%被水覆盖。本平台对其日照进行日下点校准，与现实同步。
+            </p>
+            <div class="celestial-stats">
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轨道周期</span
+                ><span class="celestial-stat-value">1.0年</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">自转周期</span
+                ><span class="celestial-stat-value">23.93h</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轴倾角</span
+                ><span class="celestial-stat-value">23.44°</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">卫星</span
+                ><span class="celestial-stat-value">1个</span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="celestial-card"
+            style="
+              --planet-color: #aaaaaa;
+              --planet-gradient: radial-gradient(
+                circle at 30% 30%,
+                #d0d0d0,
+                #aaaaaa,
+                #707070
+              );
+              --planet-glow: rgba(170, 170, 170, 0.4);
+            "
+          >
+            <div class="celestial-visual"></div>
+            <h3>月球</h3>
+            <div class="celestial-en">MOON</div>
+            <p class="celestial-desc">
+              地球唯一卫星，因潮汐锁定始终以同一面朝向地球。作为地球子层级，轨道嵌套正确。
+            </p>
+            <div class="celestial-stats">
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轨道周期</span
+                ><span class="celestial-stat-value">27.32天</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">朔望周期</span
+                ><span class="celestial-stat-value">29.53天</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">所属</span
+                ><span class="celestial-stat-value">地球</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">重力</span
+                ><span class="celestial-stat-value">1.6 m/s²</span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="celestial-card"
+            style="
+              --planet-color: #e74c3c;
+              --planet-gradient: radial-gradient(
+                circle at 30% 30%,
+                #f08070,
+                #e74c3c,
+                #a03020
+              );
+              --planet-glow: rgba(231, 76, 60, 0.5);
+            "
+          >
+            <div class="celestial-visual"></div>
+            <h3>火星</h3>
+            <div class="celestial-en">MARS</div>
+            <p class="celestial-desc">
+              "红色星球"，富含氧化铁。拥有太阳系最高火山（奥林帕斯山）和最深峡谷（水手谷）。
+            </p>
+            <div class="celestial-stats">
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轨道周期</span
+                ><span class="celestial-stat-value">1.88年</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">自转周期</span
+                ><span class="celestial-stat-value">24.62h</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轴倾角</span
+                ><span class="celestial-stat-value">25.19°</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">卫星</span
+                ><span class="celestial-stat-value">2个</span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="celestial-card"
+            style="
+              --planet-color: #e67e22;
+              --planet-gradient: radial-gradient(
+                circle at 30% 30%,
+                #f5b890,
+                #e67e22,
+                #a05510
+              );
+              --planet-glow: rgba(230, 126, 34, 0.5);
+            "
+          >
+            <div class="celestial-visual"></div>
+            <h3>木星</h3>
+            <div class="celestial-en">JUPITER</div>
+            <p class="celestial-desc">
+              最大行星，质量是其他所有行星总和的2.5倍。以大红斑（持续数百年的风暴）和79+卫星著称。
+            </p>
+            <div class="celestial-stats">
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轨道周期</span
+                ><span class="celestial-stat-value">11.86年</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">自转周期</span
+                ><span class="celestial-stat-value">9.93h</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">卫星</span
+                ><span class="celestial-stat-value">95+</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">光环</span
+                ><span class="celestial-stat-value">有</span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="celestial-card"
+            style="
+              --planet-color: #f39c12;
+              --planet-gradient: radial-gradient(
+                circle at 30% 30%,
+                #f8d090,
+                #f39c12,
+                #b06800
+              );
+              --planet-glow: rgba(243, 156, 18, 0.5);
+            "
+          >
+            <div class="celestial-visual has-ring"></div>
+            <h3>土星</h3>
+            <div class="celestial-en">SATURN</div>
+            <p class="celestial-desc">
+              第二大行星，以壮观的光环系统闻名。密度小于水，泰坦是唯一有浓厚大气层的卫星。
+            </p>
+            <div class="celestial-stats">
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轨道周期</span
+                ><span class="celestial-stat-value">29.46年</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">自转周期</span
+                ><span class="celestial-stat-value">10.66h</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">卫星</span
+                ><span class="celestial-stat-value">146+</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">光环</span
+                ><span class="celestial-stat-value">7层</span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="celestial-card"
+            style="
+              --planet-color: #1abc9c;
+              --planet-gradient: radial-gradient(
+                circle at 30% 30%,
+                #80e0d0,
+                #1abc9c,
+                #107860
+              );
+              --planet-glow: rgba(26, 188, 156, 0.5);
+            "
+          >
+            <div class="celestial-visual has-ring"></div>
+            <h3>天王星</h3>
+            <div class="celestial-en">URANUS</div>
+            <p class="celestial-desc">
+              自转轴倾斜97.77°，几乎"躺着"公转。冰巨星，甲烷使其呈蓝绿色，13个光环。
+            </p>
+            <div class="celestial-stats">
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轨道周期</span
+                ><span class="celestial-stat-value">84.01年</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">自转周期</span
+                ><span class="celestial-stat-value">17.24h</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轴倾角</span
+                ><span class="celestial-stat-value">97.77°</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">卫星</span
+                ><span class="celestial-stat-value">27个</span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="celestial-card"
+            style="
+              --planet-color: #2980b9;
+              --planet-gradient: radial-gradient(
+                circle at 30% 30%,
+                #60a8d8,
+                #2980b9,
+                #154870
+              );
+              --planet-glow: rgba(41, 128, 185, 0.5);
+            "
+          >
+            <div class="celestial-visual has-ring"></div>
+            <h3>海王星</h3>
+            <div class="celestial-en">NEPTUNE</div>
+            <p class="celestial-desc">
+              最外侧行星，深蓝色。拥有太阳系最强风暴（2100km/h），海卫一是唯一逆行大型卫星。
+            </p>
+            <div class="celestial-stats">
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">轨道周期</span
+                ><span class="celestial-stat-value">164.79年</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">自转周期</span
+                ><span class="celestial-stat-value">16.11h</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">风速</span
+                ><span class="celestial-stat-value">2100km/h</span>
+              </div>
+              <div class="celestial-stat">
+                <span class="celestial-stat-label">卫星</span
+                ><span class="celestial-stat-value">14个</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 日下点校准法 ============ -->
+    <section id="algorithm">
+      <div class="container">
+        <div class="section-tag tag-green">核心算法</div>
+        <h2>
+          <span class="accent">日下点差量校准法</span>：让虚拟地球与现实同步
+        </h2>
+        <p class="section-desc">
+          这是星穹漫游的独创算法。几乎所有3D地球模型的自转朝向是随机的，无法与现实日照对应。本算法通过"先测现状
+          → 再算目标 → 最后求差旋转"三步，让地球日照与UTC时间精确同步。
+        </p>
+        <div class="algo-section">
+          <div class="algo-flow">
+            <div class="algo-step">
+              <div class="algo-step-num">1</div>
+              <h4>测量模型日下点</h4>
+              <p>
+                强制更新地球世界矩阵，计算从地球指向太阳的方向向量，提取旋转矩阵的逆变换，将世界方向转换到地球本地坐标系，计算当前模型日下点经度。
+              </p>
+              <code>measureModelSubsolarLongitude(earthMesh, sunPos)</code>
+            </div>
+            <div class="algo-step">
+              <div class="algo-step-num">2</div>
+              <h4>计算真实日下点</h4>
+              <p>
+                基于UTC时间，通过天文公式计算真实日下点经度：平太阳直射经度 =
+                (12 - UTC小时) × 15，再叠加均时差修正。
+              </p>
+              <code>calculateTrueSubsolarLongitude(utcDate)</code>
+            </div>
+            <div class="algo-step">
+              <div class="algo-step-num">3</div>
+              <h4>求差计算校准角</h4>
+              <p>
+                经度差 = 目标经度 - 当前经度（归一化到 -180~180），校准角度 =
+                360° - 经度差（归一化到 0~360），得到需要额外旋转的角度。
+              </p>
+              <code>calculateCalibrationAngle(modelLon, trueLon)</code>
+            </div>
+            <div class="algo-step">
+              <div class="algo-step-num">4</div>
+              <h4>应用校准与增量更新</h4>
+              <p>
+                初始化时应用校准角度并记录基准。动画循环中采用增量计算：当前自转
+                - 初始自转 + 校准角度，避免累积误差。先自转再轴倾斜。
+              </p>
+              <code>rotationAngle = rotationDelta + offset</code>
+            </div>
+          </div>
+          <div class="algo-precision">
+            <div class="precision-item">
+              <div class="precision-num">&lt;5°</div>
+              <div class="precision-label">校准误差</div>
+            </div>
+            <div class="precision-item">
+              <div class="precision-num">UTC</div>
+              <div class="precision-label">时间同步基准</div>
+            </div>
+            <div class="precision-item">
+              <div class="precision-num">23.44°</div>
+              <div class="precision-label">轴倾角精确处理</div>
+            </div>
+            <div class="precision-item">
+              <div class="precision-num">∞</div>
+              <div class="precision-label">增量无累积误差</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 时间控制器 ============ -->
+    <section>
+      <div class="container">
+        <div class="section-tag tag-orange">时间维度</div>
+        <h2><span class="accent">57档位</span>时间控制器</h2>
+        <p class="section-desc">
+          以静止为中心的对称设计：左侧28档回溯历史，右侧28档加速未来，中心为实时同步。从每秒6秒到每年，覆盖从秒级到年级的完整时间尺度。
+        </p>
+        <div class="time-controller-demo">
+          <div class="time-slider-demo">
+            <div class="time-track"></div>
+            <div class="time-thumb"></div>
+            <div class="time-label-center">实时</div>
+            <div class="time-labels">
+              <span>1yr/r ←</span>
+              <span>1mth/r</span>
+              <span>1day/r</span>
+              <span>1hr/r</span>
+              <span>1min/r</span>
+              <span>静止</span>
+              <span>1min/s</span>
+              <span>1hr/s</span>
+              <span>1day/s</span>
+              <span>1mth/s</span>
+              <span>→ 1yr/s</span>
+            </div>
+          </div>
+          <div class="time-controls-demo">
+            <button class="time-btn-demo">◀◀</button>
+            <button class="time-btn-demo">❚❚</button>
+            <button class="time-btn-demo">▶▶</button>
+            <button class="time-btn-demo live">
+              <span class="live-dot"></span>LIVE
+            </button>
+          </div>
+          <div class="time-features">
+            <div class="time-feature">
+              <strong>实时同步模式</strong>
+              点击LIVE按钮，模拟时间直接同步为当前真实时间，地球日照与现实完全一致。
+            </div>
+            <div class="time-feature">
+              <strong>双向时间流动</strong>
+              28档回溯 +
+              28档前进，可观察历史天象或预测未来行星位置，滑块颜色随方向变化。
+            </div>
+            <div class="time-feature">
+              <strong>动态步长限制</strong>
+              根据速度级别限制单帧最大步长（秒级1分钟、分钟级1小时、小时级1天），避免高速跳跃。
+            </div>
+            <div class="time-feature">
+              <strong>折叠式UI</strong>
+              默认折叠只显示时间，点击展开完整控制面板，节省屏幕空间，移动端友好。
+            </div>
+            <div class="time-feature">
+              <strong>播放暂停控制</strong>
+              独立于速度的播放/暂停按钮，暂停时时间静止，可仔细观察特定时刻的天体状态。
+            </div>
+            <div class="time-feature">
+              <strong>轨道增量更新</strong>
+              时间跨度超过1周才更新轨道顶点，采用增量更新失败时自动重建，平衡精度与性能。
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 信息面板 ============ -->
+    <section>
+      <div class="container">
+        <div class="section-tag tag-purple">交互体验</div>
+        <h2><span class="accent">多标签页</span>信息面板</h2>
+        <p class="section-desc">
+          点击任意天体标签，弹出详细信息面板。基础信息一目了然，点击"查看更多信息"进入7标签页详细界面，每个天体配有专属特殊信息。
+        </p>
+        <div class="info-panel-demo">
+          <div class="panel-mockup">
+            <div class="panel-mockup-header">
+              <h4>EARTH · 基础信息</h4>
+            </div>
+            <div class="panel-mockup-body">
+              <div class="panel-mockup-section">
+                <h5>星球概述</h5>
+                <p style="font-size: 13px; color: #a0a0b0">
+                  目前已知唯一存在生命的行星，表面71%被水覆盖，拥有适宜生命生存的大气层和磁场。
+                </p>
+              </div>
+              <div class="panel-mockup-section">
+                <h5>基础信息</h5>
+                <div class="panel-mockup-row">
+                  <span class="label">半径</span
+                  ><span class="value">0.6371 × 10⁴ KM</span>
+                </div>
+                <div class="panel-mockup-row">
+                  <span class="label">自转周期</span
+                  ><span class="value">23.93 小时</span>
+                </div>
+                <div class="panel-mockup-row">
+                  <span class="label">颜色</span
+                  ><span class="value">#3498db</span>
+                </div>
+              </div>
+              <div class="panel-mockup-section">
+                <h5>轨道参数</h5>
+                <div class="panel-mockup-row">
+                  <span class="label">半长轴</span
+                  ><span class="value">1.0000 AU</span>
+                </div>
+                <div class="panel-mockup-row">
+                  <span class="label">偏心率</span
+                  ><span class="value">0.0167</span>
+                </div>
+                <div class="panel-mockup-row">
+                  <span class="label">轨道倾角</span
+                  ><span class="value">0.0001°</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel-mockup">
+            <div class="panel-mockup-header">
+              <h4>EARTH · 详细信息</h4>
+            </div>
+            <div class="panel-mockup-body">
+              <div class="panel-mockup-section">
+                <h5>标签页导航</h5>
+                <div class="panel-tabs">
+                  <span class="panel-tab active">物理特性</span>
+                  <span class="panel-tab">轨道参数</span>
+                  <span class="panel-tab">自转信息</span>
+                  <span class="panel-tab">卫星信息</span>
+                  <span class="panel-tab">历史发现</span>
+                  <span class="panel-tab">神话背景</span>
+                  <span class="panel-tab">探测历史</span>
+                </div>
+              </div>
+              <div class="panel-mockup-section">
+                <h5>物理特性</h5>
+                <div class="panel-mockup-row">
+                  <span class="label">质量</span
+                  ><span class="value">5.97 × 10²⁴ kg</span>
+                </div>
+                <div class="panel-mockup-row">
+                  <span class="label">密度</span
+                  ><span class="value">5.51 g/cm³</span>
+                </div>
+                <div class="panel-mockup-row">
+                  <span class="label">重力</span
+                  ><span class="value">9.8 m/s²</span>
+                </div>
+                <div class="panel-mockup-row">
+                  <span class="label">逃逸速度</span
+                  ><span class="value">11.2 km/s</span>
+                </div>
+                <div class="panel-mockup-row">
+                  <span class="label">反照率</span
+                  ><span class="value">0.306</span>
+                </div>
+              </div>
+              <div class="panel-mockup-section">
+                <h5>专属信息（地球特有）</h5>
+                <p style="font-size: 13px; color: #88ccaa">
+                  生命形式：地球是目前已知唯一存在生命的天体，约有870万种物种...
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 痛点 ============ -->
+    <section>
+      <div class="container">
+        <div class="section-tag tag-red">痛点与方案</div>
+        <h2>现有工具的不足，<span class="accent">逐个击破</span></h2>
+        <p class="section-desc">
+          天文教育领域长期存在"专业工具门槛高、简单工具不精确"的两难困境。星穹漫游用纯前端架构给出第三种答案。
+        </p>
+        <div class="pain-grid">
+          <div class="pain-card">
+            <div class="pain-icon">📥</div>
+            <h3>痛点1：专业软件安装复杂</h3>
+            <p class="pain-desc">
+              Stellarium、Celestia等专业天文软件需要下载安装，配置繁琐，教室电脑往往无法安装，教师望而却步。
+            </p>
+            <div class="solution">
+              <strong>✦ 星穹漫游：</strong
+              >纯浏览器运行，零安装零配置，打开链接即用。基于ES Modules +
+              importmap加载Three.js，无需打包构建。
+            </div>
+          </div>
+          <div class="pain-card">
+            <div class="pain-icon">🎯</div>
+            <h3>痛点2：简单动画不精确</h3>
+            <p class="pain-desc">
+              大多数在线太阳系演示只是简单动画，行星位置与真实天文数据严重不符，无法用于严谨的教学演示。
+            </p>
+            <div class="solution">
+              <strong>✦ 星穹漫游：</strong
+              >基于开普勒轨道方程求解，采用VSOP87部分参数，行星位置与NASA数据对齐。每个天体配置完整轨道根数及变化率。
+            </div>
+          </div>
+          <div class="pain-card">
+            <div class="pain-icon">🌍</div>
+            <h3>痛点3：地球日照无法验证</h3>
+            <p class="pain-desc">
+              几乎所有3D地球模型的自转朝向是随机的，无法与现实日照对应，地理教学中"日下点"概念无法直观展示。
+            </p>
+            <div class="solution">
+              <strong>✦ 星穹漫游：</strong
+              >独创日下点差量校准法，地球日照与UTC时间精确同步，误差小于5°，可实时验证与现实是否一致。
+            </div>
+          </div>
+          <div class="pain-card">
+            <div class="pain-icon">📱</div>
+            <h3>痛点4：移动端体验差</h3>
+            <p class="pain-desc">
+              多数3D太阳系只适配桌面端，手机上无法操作，输入框聚焦时页面缩放，触屏手势支持不全。
+            </p>
+            <div class="solution">
+              <strong>✦ 星穹漫游：</strong
+              >完整触屏手势（单指旋转、双指缩放平移），自动管理viewport防缩放，信息面板激活时智能切换控制状态。
+            </div>
+          </div>
+          <div class="pain-card">
+            <div class="pain-icon">📊</div>
+            <h3>痛点5：科普数据单薄</h3>
+            <p class="pain-desc">
+              多数演示只显示行星名称和基本参数，缺乏神话背景、探测历史、特殊特征等丰富内容，无法满足深度学习。
+            </p>
+            <div class="solution">
+              <strong>✦ 星穹漫游：</strong
+              >7大标签页详细面板，每个天体配有专属特殊信息（火星殖民、月球探索、海王星极端天气等），数据详实。
+            </div>
+          </div>
+          <div class="pain-card">
+            <div class="pain-icon">⚡</div>
+            <h3>痛点6：性能优化不足</h3>
+            <p class="pain-desc">
+              完整渲染10个天体加光环加标签，性能消耗大，低端设备卡顿，远距离天体仍渲染浪费资源。
+            </p>
+            <div class="solution">
+              <strong>✦ 星穹漫游：</strong
+              >视距剔除动态隐藏远天体，轨道增量更新，标签射线遮挡渐变透明，对数深度缓冲解决Z-fighting。
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 技术架构 ============ -->
+    <section>
+      <div class="container">
+        <div class="section-tag tag-purple">技术方案</div>
+        <h2><span class="accent">技术架构</span>分层设计</h2>
+        <p class="section-desc">
+          星穹漫游采用纯前端架构，无需后端服务，所有天文计算在浏览器端实时完成。代码模块化分层，职责清晰。
+        </p>
+        <div class="tech-section">
+          <div class="tech-arch">
+            <div class="tech-layer">
+              <h4><span class="layer-num">1</span>渲染层</h4>
+              <ul class="tech-list">
+                <li>
+                  <span class="tech-dot" style="background: #4a6cf7"></span
+                  >Three.js 0.170.0 WebGL
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #4a6cf7"></span
+                  >对数深度缓冲（Z-fighting）
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #4a6cf7"></span
+                  >PCFSoftShadowMap 软阴影
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #4a6cf7"></span
+                  >CSS2DRenderer 标签系统
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #4a6cf7"></span
+                  >Sprite 太阳光晕
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #4a6cf7"></span
+                  >纹理贴图（法线/高光）
+                </li>
+              </ul>
+            </div>
+            <div class="tech-layer">
+              <h4><span class="layer-num">2</span>交互层</h4>
+              <ul class="tech-list">
+                <li>
+                  <span class="tech-dot" style="background: #ff8c00"></span
+                  >OrbitControls 轨道控制
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #ff8c00"></span
+                  >触屏手势（单指/双指）
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #ff8c00"></span
+                  >Raycaster 射线检测
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #ff8c00"></span
+                  >搜索导航（模糊匹配）
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #ff8c00"></span
+                  >相机缓动飞行
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #ff8c00"></span
+                  >滚轮/双指缩放
+                </li>
+              </ul>
+            </div>
+            <div class="tech-layer">
+              <h4><span class="layer-num">3</span>算法层</h4>
+              <ul class="tech-list">
+                <li>
+                  <span class="tech-dot" style="background: #50c878"></span
+                  >开普勒轨道方程求解
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #50c878"></span
+                  >VSOP87 轨道参数
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #50c878"></span
+                  >日下点差量校准法
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #50c878"></span
+                  >地球自转矩阵变换
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #50c878"></span
+                  >轴倾角处理（23.44°）
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #50c878"></span
+                  >增量角度计算
+                </li>
+              </ul>
+            </div>
+            <div class="tech-layer">
+              <h4><span class="layer-num">4</span>数据层</h4>
+              <ul class="tech-list">
+                <li>
+                  <span class="tech-dot" style="background: #a064ff"></span
+                  >dats.js 天体数据配置
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #a064ff"></span
+                  >完整轨道根数及变化率
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #a064ff"></span
+                  >物理参数（质量/密度等）
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #a064ff"></span
+                  >神话背景资料
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #a064ff"></span
+                  >探测历史档案
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #a064ff"></span
+                  >专属特殊信息
+                </li>
+              </ul>
+            </div>
+            <div class="tech-layer">
+              <h4><span class="layer-num">5</span>控制层</h4>
+              <ul class="tech-list">
+                <li>
+                  <span class="tech-dot" style="background: #ff6347"></span
+                  >57档位时间控制器
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #ff6347"></span
+                  >LIVE实时同步
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #ff6347"></span
+                  >动态步长限制
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #ff6347"></span
+                  >折叠/展开UI
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #ff6347"></span
+                  >dat.GUI 控制面板
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #ff6347"></span
+                  >状态事件回调
+                </li>
+              </ul>
+            </div>
+            <div class="tech-layer">
+              <h4><span class="layer-num">6</span>性能层</h4>
+              <ul class="tech-list">
+                <li>
+                  <span class="tech-dot" style="background: #00bcd4"></span
+                  >视距剔除
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #00bcd4"></span
+                  >轨道增量更新
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #00bcd4"></span
+                  >标签遮挡渐变
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #00bcd4"></span
+                  >Sprite尺寸自适应
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #00bcd4"></span
+                  >太阳安全距离
+                </li>
+                <li>
+                  <span class="tech-dot" style="background: #00bcd4"></span
+                  >requestAnimationFrame
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 数据表 ============ -->
+    <section>
+      <div class="container">
+        <div class="section-tag tag-blue">数据精度</div>
+        <h2><span class="accent">天文级</span>数据配置</h2>
+        <p class="section-desc">
+          每个天体基于真实天文数据建模，配置完整的轨道根数（含变化率）、物理参数、自转参数。以下为部分关键数据。
+        </p>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>天体</th>
+                <th>半长轴(AU)</th>
+                <th>偏心率</th>
+                <th>轨道倾角(°)</th>
+                <th>公转周期</th>
+                <th>自转周期(h)</th>
+                <th>轴倾角(°)</th>
+                <th>卫星数</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="planet-name">
+                  <span
+                    class="planet-dot"
+                    style="background: #ffd700; color: #ffd700"
+                  ></span
+                  >太阳
+                </td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td class="planet-name">
+                  <span
+                    class="planet-dot"
+                    style="background: #eb3324; color: #eb3324"
+                  ></span
+                  >水星
+                </td>
+                <td>0.3871</td>
+                <td>0.2056</td>
+                <td>7.0050</td>
+                <td>0.241年</td>
+                <td>1407.6</td>
+                <td>0.034</td>
+                <td>0</td>
+              </tr>
+              <tr>
+                <td class="planet-name">
+                  <span
+                    class="planet-dot"
+                    style="background: #ffff00; color: #ffff00"
+                  ></span
+                  >金星
+                </td>
+                <td>0.7233</td>
+                <td>0.0068</td>
+                <td>3.3947</td>
+                <td>0.615年</td>
+                <td>-5832.5</td>
+                <td>2.67</td>
+                <td>0</td>
+              </tr>
+              <tr>
+                <td class="planet-name">
+                  <span
+                    class="planet-dot"
+                    style="background: #3498db; color: #3498db"
+                  ></span
+                  >地球
+                </td>
+                <td>1.0000</td>
+                <td>0.0167</td>
+                <td>0.0001</td>
+                <td>1.0年</td>
+                <td>23.934</td>
+                <td>23.439</td>
+                <td>1</td>
+              </tr>
+              <tr>
+                <td class="planet-name">
+                  <span
+                    class="planet-dot"
+                    style="background: #aaaaaa; color: #aaaaaa"
+                  ></span
+                  >月球
+                </td>
+                <td>0.00257</td>
+                <td>0.0549</td>
+                <td>5.145</td>
+                <td>27.32天</td>
+                <td>655.72</td>
+                <td>6.68</td>
+                <td>0</td>
+              </tr>
+              <tr>
+                <td class="planet-name">
+                  <span
+                    class="planet-dot"
+                    style="background: #e74c3c; color: #e74c3c"
+                  ></span
+                  >火星
+                </td>
+                <td>1.5237</td>
+                <td>0.0934</td>
+                <td>1.8506</td>
+                <td>1.88年</td>
+                <td>24.623</td>
+                <td>25.19</td>
+                <td>2</td>
+              </tr>
+              <tr>
+                <td class="planet-name">
+                  <span
+                    class="planet-dot"
+                    style="background: #e67e22; color: #e67e22"
+                  ></span
+                  >木星
+                </td>
+                <td>5.2029</td>
+                <td>0.0484</td>
+                <td>1.3033</td>
+                <td>11.86年</td>
+                <td>9.925</td>
+                <td>3.13</td>
+                <td>95+</td>
+              </tr>
+              <tr>
+                <td class="planet-name">
+                  <span
+                    class="planet-dot"
+                    style="background: #f39c12; color: #f39c12"
+                  ></span
+                  >土星
+                </td>
+                <td>9.5367</td>
+                <td>0.0539</td>
+                <td>2.4889</td>
+                <td>29.46年</td>
+                <td>10.656</td>
+                <td>26.73</td>
+                <td>146+</td>
+              </tr>
+              <tr>
+                <td class="planet-name">
+                  <span
+                    class="planet-dot"
+                    style="background: #1abc9c; color: #1abc9c"
+                  ></span
+                  >天王星
+                </td>
+                <td>19.1892</td>
+                <td>0.0473</td>
+                <td>0.7731</td>
+                <td>84.01年</td>
+                <td>17.24</td>
+                <td>97.77</td>
+                <td>27</td>
+              </tr>
+              <tr>
+                <td class="planet-name">
+                  <span
+                    class="planet-dot"
+                    style="background: #2980b9; color: #2980b9"
+                  ></span
+                  >海王星
+                </td>
+                <td>30.0699</td>
+                <td>0.0086</td>
+                <td>1.7700</td>
+                <td>164.79年</td>
+                <td>16.11</td>
+                <td>28.32</td>
+                <td>14</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 价值 ============ -->
+    <section>
+      <div class="container">
+        <div class="section-tag tag-green">价值与意义</div>
+        <h2>让每个人都能<span class="accent">探索太阳系</span></h2>
+        <p class="section-desc">
+          天文不应是少数人的特权。一个浏览器窗口，就是通往宇宙的飞船。星穹漫游让精确的天文科普触手可及。
+        </p>
+        <div class="value-grid">
+          <div class="value-card">
+            <div class="value-number">0</div>
+            <h3>零安装门槛</h3>
+            <p>
+              无需下载、无需注册、无需安装任何插件。任何现代浏览器的设备——包括手机——打开链接即可使用，覆盖最广泛的用户群体。
+            </p>
+          </div>
+          <div class="value-card">
+            <div class="value-number">5°</div>
+            <h3>天文级精度</h3>
+            <p>
+              日下点校准误差小于5°，行星轨道基于开普勒方程计算。不是"看起来差不多"，而是"经得起验证"。
+            </p>
+          </div>
+          <div class="value-card">
+            <div class="value-number">∞</div>
+            <h3>时间无边界</h3>
+            <p>
+              57档位时间控制器让用户可以观察任意时刻的太阳系状态。加速观察百年轨道变化，回溯历史天象，让时间成为探索的维度。
+            </p>
+          </div>
+          <div class="value-card">
+            <div class="value-number">10</div>
+            <h3>天体全覆盖</h3>
+            <p>
+              太阳、八大行星、月球共10个天体，每个都配备真实纹理、完整轨道参数、详细科普资料，从物理特性到神话背景一应俱全。
+            </p>
+          </div>
+          <div class="value-card">
+            <div class="value-number">7</div>
+            <h3>标签页详解</h3>
+            <p>
+              每个天体的详细信息面板包含7个标签页：物理特性、轨道参数、自转信息、卫星信息、历史发现、神话背景、探测历史。
+            </p>
+          </div>
+          <div class="value-card">
+            <div class="value-number">全</div>
+            <h3>平台全适配</h3>
+            <p>
+              桌面端鼠标、移动端触屏完整支持。单指旋转、双指缩放平移、防输入框缩放，手机平板电脑均可流畅使用。
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Footer ============ -->
+    <div class="footer">
+      <div class="brand">星穹漫游</div>
+      <p>STELLAR ODYSSEY · 3D交互式太阳系天文科普平台</p>
+      <p>TRAE AI 创造力大赛 · 学习工作赛道 · 创意提案</p>
+      <div class="footer-meta">
+        基于 Three.js WebGL · 开普勒轨道方程 · 日下点差量校准法 · 纯前端架构
+      </div>
+    </div>
+
+    <script>
+      // 生成星空背景
+      const starsContainer = document.getElementById("stars");
+      for (let i = 0; i < 180; i++) {
+        const star = document.createElement("div");
+        star.className = "star";
+        const size = Math.random() * 2.5 + 0.5;
+        star.style.width = size + "px";
+        star.style.height = size + "px";
+        star.style.left = Math.random() * 100 + "%";
+        star.style.top = Math.random() * 100 + "%";
+        star.style.animationDelay = Math.random() * 3 + "s";
+        star.style.animationDuration = Math.random() * 2 + 2 + "s";
+        starsContainer.appendChild(star);
+      }
+    </script>
+  </body>
+</html>

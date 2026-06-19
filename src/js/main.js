@@ -353,9 +353,14 @@ let earthInitialRotationOffset = 0; // 初始校准角度
 let needsInitialCalibration = true; // 是否需要初始校准
 let earthInitialBaseRotation = 0; // 初始时刻的自转基准角度
 
+// 交互状态变量（提前声明，避免使用时处于暂时性死区）
+let selectedCelestial = null; // 当前选中的天体
+const cameraOffset = new THREE.Vector3(0, 0, 200); // 相机偏移基准
+let distanceScale = 0.02; // 距离缩放因子
+
 // 控制选项对象
 const guiOptions = {
-  // 已移除轨道显示控制
+  ShowOrbits: true, // 轨道默认显示
 };
 
 // 初始化标签渲染器-------------------------- 4. 批量创建天体系统 --------------------------
@@ -698,11 +703,6 @@ searchInput.addEventListener("keydown", (event) => {
   }
 });
 
-// 保留点击事件处理但移除高亮相关逻辑
-window.addEventListener("click", (event) => {
-  // 仅保留基本的事件结构，移除高亮相关逻辑
-});
-
 // 自动移动状态标志
 let isAutoMoving = false;
 
@@ -822,15 +822,6 @@ function onSearchByQuery(query) {
   if (planet) {
     searchAndNavigateTo(planet);
   }
-}
-
-// 清除所有可能存在的高亮效果
-function clearAllHighlights() {
-  scene.traverse((obj) => {
-    if (obj.userData && obj.userData.type === "highlight") {
-      if (obj.parent) obj.parent.remove(obj);
-    }
-  });
 }
 
 /**
@@ -1154,43 +1145,44 @@ function addIcon(group, orbit, size, name) {
   iconDiv.style.transition = "opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
   iconDiv.style.opacity = "1"; // 初始完全可见
 
+  // 缓存遮挡检测用对象，避免每帧创建
+  const _labelWorldPos = new THREE.Vector3();
+  const _occluderTargets = () => [sun, ...Object.values(planets)];
+
+  // 帧计数器：每3帧执行一次遮挡检测，降低射线检测开销
+  let _occlusionFrameCounter = 0;
+
   iconLabel.onBeforeRender = (_, __, camera) => {
+    // 每3帧才执行一次遮挡检测，降低性能开销
+    _occlusionFrameCounter++;
+    if (_occlusionFrameCounter % 3 !== 0) return;
+
     // 1. 获取标签世界坐标
-    const labelWorldPos = new THREE.Vector3().setFromMatrixPosition(
-      iconLabel.matrixWorld
-    );
+    _labelWorldPos.setFromMatrixPosition(iconLabel.matrixWorld);
     // 计算标签到相机的总距离
-    const labelDistance = camera.position.distanceTo(labelWorldPos);
+    const labelDistance = camera.position.distanceTo(_labelWorldPos);
 
     // 2. 射线检测遮挡物
     raycaster.set(
       camera.position,
-      labelWorldPos.clone().sub(camera.position).normalize()
+      _labelWorldPos.clone().sub(camera.position).normalize()
     );
-    const intersects = raycaster.intersectObjects(
-      [...Object.values(planets), sun],
-      false
-    );
+    const intersects = raycaster.intersectObjects(_occluderTargets(), false);
 
     // 3. 筛选有效的遮挡物（非自身且距离更近）
-    const occluders = intersects.filter(
-      (intersect) =>
-        intersect.object !== mesh && intersect.distance < labelDistance - 0.1 // 0.1是避免边缘闪烁的偏差值
-    );
+    let closestOccluder = null;
+    for (let i = 0; i < intersects.length; i++) {
+      const intersect = intersects[i];
+      if (intersect.object !== mesh && intersect.distance < labelDistance - 0.1) {
+        if (!closestOccluder || intersect.distance < closestOccluder.distance) {
+          closestOccluder = intersect;
+        }
+      }
+    }
 
-    if (occluders.length > 0) {
-      // 4. 找到最近的遮挡物
-      const closestOccluder = occluders.sort(
-        (a, b) => a.distance - b.distance
-      )[0];
-
-      // 5. 计算遮挡比例（0~1）：
-      // - 遮挡物越近（距离接近0），比例越接近1（透明度越高）
-      // - 遮挡物越远（接近标签距离），比例越接近0（透明度越低）
+    if (closestOccluder) {
+      // 4. 计算遮挡比例（0~1）
       const occlusionRatio = 1 - closestOccluder.distance / labelDistance;
-
-      // 6. 限制比例范围（0~1），并计算最终透明度
-      // 乘以1.2是为了让遮挡比例达到0.8以上时就完全透明，增强过渡效果
       const clampedRatio = Math.min(1, Math.max(0, occlusionRatio * 1.2));
       iconDiv.style.opacity = (1 - clampedRatio).toString();
     } else {
@@ -1248,15 +1240,17 @@ function initGUI() {
 document.addEventListener("DOMContentLoaded", initGUI);
 
 // -------------------------- 9. 性能优化：视距剔除 --------------------------
+// 复用临时向量，避免每帧创建新对象导致GC压力
+const _visibilityCheckPos = new THREE.Vector3();
+
 function updateVisibility() {
   Object.keys(celestialGroups).forEach((name) => {
     const group = celestialGroups[name];
     const data = planetData[name];
     if (!group || !data) return;
 
-    const groupPosition = new THREE.Vector3();
-    group.getWorldPosition(groupPosition);
-    const distance = camera.position.distanceTo(groupPosition);
+    group.getWorldPosition(_visibilityCheckPos);
+    const distance = camera.position.distanceTo(_visibilityCheckPos);
     const sizeRatio = data.radius / planetData.earth.radius;
     const maxVisibleDistance =
       (data.a ? data.a[0] * 200000 : 10000) * sizeRatio;
@@ -1284,17 +1278,10 @@ function updateVisibility() {
 
 function updateSpriteSize(sprite) {
   const distance = camera.position.distanceTo(sprite.position);
-  if (distance > 1000) {
-    sprite.visible = true;
-  } else if (distance <= 1000) {
-    sprite.visible = false;
-  }
-  if (distance > 10000000) {
-    sun.children[0].children[0].visible = false;
-  } else if (distance < 10000000) {
-    sun.children[0].children[0].visible = true;
-  }
+  // 太阳光晕在近距离时隐藏，远距离时显示
+  sprite.visible = distance > 1000;
 
+  // 根据相机距离动态调整光晕尺寸，保持屏幕占比一致
   const fov = camera.fov * (Math.PI / 180);
   const height = 2 * Math.tan(fov / 2) * distance;
   const width = height * camera.aspect;
@@ -1304,9 +1291,6 @@ function updateSpriteSize(sprite) {
 }
 
 // -------------------------- 10. 动画循环 --------------------------
-let selectedCelestial = null;
-const cameraOffset = new THREE.Vector3(0, 0, 200);
-let distanceScale = 0.02;
 const clock = new THREE.Clock();
 
 // 鼠标滚轮控制（独立实现，不依赖点击时的固定缩放逻辑）

@@ -43,7 +43,7 @@ function utcToJulianDate(utcDate) {
  * @returns {number} 弧度值
  */
 function degToRad(degrees) {
-  return (degrees * Math.PI) / 180;
+  return degreesToRadians(degrees);
 }
 
 /**
@@ -347,7 +347,7 @@ function createOrbit(str, date = new Date()) {
 
   const points = [];
   const isSatellite = !!data.centralPlanet;
-  const pointCount = isSatellite ? 5000 : 40000; // 卫星轨道点数较少
+  const pointCount = isSatellite ? 256 : 1024; // 卫星轨道点数较少，行星轨道1024点足够平滑
 
   // 计算轨道参数 - 使用传入的时间来计算长期变化
   const JD = julianDate(date);
@@ -508,6 +508,17 @@ function createSprite(type) {
 }
 
 /**
+ * 根据半径计算合适的球体分段数
+ * @param {number} radius - 球体半径
+ * @returns {number} 分段数（16~64之间）
+ */
+function getSphereSegments(radius) {
+  if (radius > 5) return 64; // 大型天体（木星、土星、太阳等）
+  if (radius > 1) return 48; // 中型天体（天王星、海王星）
+  return 32; // 小型天体（地球、月球、水星等）
+}
+
+/**
  * 创建太阳
  * @param {string} name - 名称
  * @param {number} radius - 半径
@@ -517,7 +528,7 @@ function createSun(name, radius) {
   const textureLoader = new THREE.TextureLoader();
   const texture = textureLoader.load(`./assets/${name}.jpg`);
   const material = new THREE.MeshBasicMaterial({ map: texture });
-  const geometry = new THREE.SphereGeometry(radius, 128, 128);
+  const geometry = new THREE.SphereGeometry(radius, 64, 64);
   const sun = new THREE.Mesh(geometry, material);
   sun.add(new THREE.PointLight(0xffffff, 2, 1000)); // 太阳光源
   return sun;
@@ -533,13 +544,12 @@ function createPlanet(name, radius) {
   const textureLoader = new THREE.TextureLoader();
   const texture = textureLoader.load(`./assets/${name}.jpg`);
   const material = new THREE.MeshPhongMaterial({ map: texture });
-  const geometry = new THREE.SphereGeometry(radius, 128, 128);
+  const segments = getSphereSegments(radius);
+  const geometry = new THREE.SphereGeometry(radius, segments, segments);
   const planet = new THREE.Mesh(geometry, material);
   planet.name = name;
   planet.castShadow = true;
   planet.receiveShadow = true;
-
-  // 地球局部坐标系辅助线已移除
 
   // 新增：月球初始旋转180度
   if (name === "moon") {
@@ -565,7 +575,7 @@ function createUniverse(name, radius) {
     opacity: 0.5,
   });
 
-  const geometry = new THREE.SphereGeometry(radius, 128, 128);
+  const geometry = new THREE.SphereGeometry(radius, 32, 32);
   const universe = new THREE.Mesh(geometry, material);
 
   return universe;
@@ -872,7 +882,6 @@ export {
   createUniverse,
   createRing,
   createGroup,
-  utcToJulianDate,
   createLocationMarker,
   calculateEarthRotation,
 

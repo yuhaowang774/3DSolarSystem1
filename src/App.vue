@@ -24,6 +24,20 @@ onMounted(() => {
     <SearchBar />
     <TimeController />
     <InfoPanel />
-    <LoadingOverlay v-if="state.loading" />
+    <Transition name="loading-fade">
+      <LoadingOverlay v-if="state.loading" />
+    </Transition>
   </div>
 </template>
+
+<style>
+.loading-fade-leave-active {
+  transition: opacity 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.loading-fade-leave-from {
+  opacity: 1;
+}
+.loading-fade-leave-to {
+  opacity: 0;
+}
+</style>

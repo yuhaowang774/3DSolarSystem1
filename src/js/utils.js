@@ -480,15 +480,15 @@ function updateOrbitVertices(orbitLine, date) {
  * @param {string} type - 精灵类型
  * @returns {THREE.Sprite} 精灵对象
  */
-function createSprite(type) {
+function createSprite(type, manager) {
   // 参数有效性检查
   if (typeof type !== "string" || !type) {
     console.error("createSprite: 无效的精灵类型");
     return null;
   }
 
-  const textureLoader = new THREE.TextureLoader();
-  const texture = textureLoader.load(`./assets/${type}.png`);
+  const textureLoader = new THREE.TextureLoader(manager);
+  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${type}.png`);
 
   const material = new THREE.SpriteMaterial({
     map: texture,
@@ -524,9 +524,9 @@ function getSphereSegments(radius) {
  * @param {number} radius - 半径
  * @returns {THREE.Mesh} 太阳网格对象
  */
-function createSun(name, radius) {
-  const textureLoader = new THREE.TextureLoader();
-  const texture = textureLoader.load(`./assets/${name}.jpg`);
+function createSun(name, radius, manager) {
+  const textureLoader = new THREE.TextureLoader(manager);
+  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.jpg`);
   const material = new THREE.MeshBasicMaterial({ map: texture });
   const geometry = new THREE.SphereGeometry(radius, 64, 64);
   const sun = new THREE.Mesh(geometry, material);
@@ -540,9 +540,9 @@ function createSun(name, radius) {
  * @param {number} radius - 半径
  * @returns {THREE.Mesh} 行星网格对象
  */
-function createPlanet(name, radius) {
-  const textureLoader = new THREE.TextureLoader();
-  const texture = textureLoader.load(`./assets/${name}.jpg`);
+function createPlanet(name, radius, manager) {
+  const textureLoader = new THREE.TextureLoader(manager);
+  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.jpg`);
   const material = new THREE.MeshPhongMaterial({ map: texture });
   const segments = getSphereSegments(radius);
   const geometry = new THREE.SphereGeometry(radius, segments, segments);
@@ -565,9 +565,9 @@ function createPlanet(name, radius) {
  * @param {number} radius - 半径
  * @returns {THREE.Mesh} 宇宙背景网格对象
  */
-function createUniverse(name, radius) {
-  const textureLoader = new THREE.TextureLoader();
-  const texture = textureLoader.load(`./assets/${name}.jpg`);
+function createUniverse(name, radius, manager) {
+  const textureLoader = new THREE.TextureLoader(manager);
+  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.jpg`);
   const material = new THREE.MeshBasicMaterial({
     map: texture,
     side: THREE.BackSide,
@@ -588,9 +588,9 @@ function createUniverse(name, radius) {
  * @param {number} outerRadius - 外环半径
  * @returns {THREE.Mesh} 行星环网格对象
  */
-function createRing(name, innerRadius, outerRadius) {
-  const ringTextureLoader = new THREE.TextureLoader();
-  const ringTexture = ringTextureLoader.load(`./assets/${name}.png`);
+function createRing(name, innerRadius, outerRadius, manager) {
+  const ringTextureLoader = new THREE.TextureLoader(manager);
+  const ringTexture = ringTextureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.png`);
 
   ringTexture.colorSpace = THREE.SRGBColorSpace;
   const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 128);

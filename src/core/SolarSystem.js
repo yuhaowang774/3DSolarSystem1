@@ -26,6 +26,15 @@ import { calculateTimeStep } from "../composables/useTimeController.js";
 
 const ASSET = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 
+// SpaceX 风格任务序列：真实对应资源加载阶段
+const STAGES = [
+  "ACQUIRING TELEMETRY LINK",
+  "LOADING ORBITAL TEXTURES",
+  "CALIBRATING EPHEMERIS",
+  "RENDERING STAR FIELD",
+  "SYSTEMS NOMINAL",
+];
+
 export class SolarSystem {
   constructor(container) {
     this.container = container;
@@ -49,9 +58,24 @@ export class SolarSystem {
     this._tmpVec = new THREE.Vector3();
     this._raf = null;
     this._disposed = false;
+
+    // 统一纹理加载管理器：真实跟踪资源加载进度
+    this.loadingManager = new THREE.LoadingManager();
+    this.loadingManager.onProgress = (url, loaded, total) => {
+      state.loadingProgress = Math.min(99, Math.round((loaded / total) * 100));
+      state.loadingStage = Math.min(STAGES.length - 1, Math.floor((loaded / total) * STAGES.length));
+    };
+    // 所有纹理真实加载完成后 resolve，确保加载层在资源就绪后才消失
+    this._onLoaded = new Promise((resolve) => {
+      this.loadingManager.onLoad = () => {
+        state.loadingStage = STAGES.length - 1;
+        resolve();
+      };
+    });
   }
 
   async init() {
+    const startedAt = performance.now();
     this._initScene();
     this._initLights();
     this._initBodies();
@@ -59,6 +83,11 @@ export class SolarSystem {
     this._initLabels();
     this._bindCommands();
     this._bindInput();
+    // 等待真实纹理加载完成（缓存命中也会立即 resolve）
+    await this._onLoaded;
+    // 至少展示 900ms，让加载动画可见且有仪式感
+    const elapsed = performance.now() - startedAt;
+    if (elapsed < 900) await new Promise((r) => setTimeout(r, 900 - elapsed));
     this._updateLoadingState(true);
     this.animate();
   }
@@ -67,6 +96,7 @@ export class SolarSystem {
     state.loading = !done;
     if (done) {
       state.loadingProgress = 100;
+      state.loadingStage = STAGES.length - 1;
       state.loadingText = "SYSTEMS ONLINE";
     }
   }
@@ -140,10 +170,10 @@ export class SolarSystem {
       "jupiter", "saturn", "uranus", "neptune", "moon",
     ];
 
-    this.universe = createUniverse(planetData.universe.name, planetData.universe.radius);
-    this.sun = createSun(planetData.sun.name, planetData.sun.radius);
+    this.universe = createUniverse(planetData.universe.name, planetData.universe.radius, this.loadingManager);
+    this.sun = createSun(planetData.sun.name, planetData.sun.radius, this.loadingManager);
 
-    this.sunHalo = createSprite("sun-glow");
+    this.sunHalo = createSprite("sun-glow", this.loadingManager);
     const sunRadius = this.sun.geometry.parameters.radius;
     this.sunHalo.scale.set(sunRadius, sunRadius, 1);
     this.sun.add(this.sunHalo);
@@ -160,7 +190,7 @@ export class SolarSystem {
       const data = planetData[name];
       if (!data) return;
 
-      const celestial = name === "sun" ? this.sun : createPlanet(data.name, data.radius);
+      const celestial = name === "sun" ? this.sun : createPlanet(data.name, data.radius, this.loadingManager);
       if (name !== "sun") this.planets[name] = celestial;
 
       const group = createGroup(celestial);
@@ -207,7 +237,7 @@ export class SolarSystem {
     ];
     configs.forEach((c) => {
       if (this.celestialGroups[c.planet]) {
-        const ring = createRing(c.ringName, c.inner, c.outer);
+        const ring = createRing(c.ringName, c.inner, c.outer, this.loadingManager);
         this.celestialGroups[c.planet].add(ring);
       }
     });

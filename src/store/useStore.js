@@ -5,6 +5,7 @@ const state = reactive({
   // 加载状态
   loading: true,
   loadingProgress: 0,
+  loadingStage: 0,
   loadingText: "INITIALIZING SYSTEMS...",
 
   // 当前模拟时间

@@ -66,12 +66,26 @@ export class SolarSystem {
       state.loadingStage = Math.min(STAGES.length - 1, Math.floor((loaded / total) * STAGES.length));
     };
     // 所有纹理真实加载完成后 resolve，确保加载层在资源就绪后才消失
+    let _resolved = false;
+    const finishLoading = () => {
+      if (_resolved) return;
+      _resolved = true;
+      state.loadingStage = STAGES.length - 1;
+      state.loadingProgress = 100;
+      if (this._onLoadedResolve) this._onLoadedResolve();
+    };
     this._onLoaded = new Promise((resolve) => {
-      this.loadingManager.onLoad = () => {
-        state.loadingStage = STAGES.length - 1;
-        resolve();
+      this._onLoadedResolve = resolve;
+      this.loadingManager.onLoad = () => finishLoading();
+      // 单个纹理加载失败时不卡住：计入已加载并继续
+      this.loadingManager.onError = (url) => {
+        console.warn(`[SolarSystem] texture load failed: ${url}`);
+        // onError 后 LoadingManager 会继续处理剩余项，
+        // 但如果某个请求挂起（不触发 itemEnd），需要超时兜底
       };
     });
+    // 超时兜底：即使个别纹理挂起，最多等 12s 强制完成
+    this._loadingTimeout = setTimeout(finishLoading, 12000);
   }
 
   async init() {
@@ -619,6 +633,7 @@ export class SolarSystem {
   dispose() {
     this._disposed = true;
     if (this._raf) cancelAnimationFrame(this._raf);
+    if (this._loadingTimeout) clearTimeout(this._loadingTimeout);
     window.removeEventListener("resize", this._onResize);
     window.removeEventListener("wheel", this._onWheel);
     this.controls?.dispose();

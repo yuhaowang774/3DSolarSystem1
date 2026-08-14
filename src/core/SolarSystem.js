@@ -128,6 +128,7 @@ export class SolarSystem {
       logarithmicDepthBuffer: true,
     });
     this.renderer.setSize(w, h);
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.container.appendChild(this.renderer.domElement);
@@ -169,8 +170,10 @@ export class SolarSystem {
   }
 
   _initLights() {
-    this.scene.add(new THREE.AmbientLight(0x404040));
-    this.pointLight = new THREE.PointLight(0xffffff, 8, 0, 0.1);
+    // 环境光：提供基础亮度，确保行星背光面也能显出纹理（不再全黑）
+    this.scene.add(new THREE.AmbientLight(0x888888));
+    // 点光源（太阳）：decay=0 且 distance=0 表示无衰减、覆盖全场景
+    this.pointLight = new THREE.PointLight(0xffffff, 3, 0, 0);
     this.pointLight.position.set(0, 0, 0);
     this.pointLight.castShadow = true;
     this.pointLight.shadow.mapSize.width = 1024;

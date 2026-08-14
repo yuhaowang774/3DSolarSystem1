@@ -488,7 +488,7 @@ function createSprite(type, manager) {
   }
 
   const textureLoader = new THREE.TextureLoader(manager);
-  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${type}.png`);
+  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${type}.webp`);
 
   const material = new THREE.SpriteMaterial({
     map: texture,
@@ -526,11 +526,11 @@ function getSphereSegments(radius) {
  */
 function createSun(name, radius, manager) {
   const textureLoader = new THREE.TextureLoader(manager);
-  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.jpg`);
+  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.webp`);
+  texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.MeshBasicMaterial({ map: texture });
   const geometry = new THREE.SphereGeometry(radius, 64, 64);
   const sun = new THREE.Mesh(geometry, material);
-  sun.add(new THREE.PointLight(0xffffff, 2, 1000)); // 太阳光源
   return sun;
 }
 
@@ -542,7 +542,8 @@ function createSun(name, radius, manager) {
  */
 function createPlanet(name, radius, manager) {
   const textureLoader = new THREE.TextureLoader(manager);
-  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.jpg`);
+  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.webp`);
+  texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.MeshPhongMaterial({ map: texture });
   const segments = getSphereSegments(radius);
   const geometry = new THREE.SphereGeometry(radius, segments, segments);
@@ -567,12 +568,11 @@ function createPlanet(name, radius, manager) {
  */
 function createUniverse(name, radius, manager) {
   const textureLoader = new THREE.TextureLoader(manager);
-  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.jpg`);
+  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.webp`);
+  texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.MeshBasicMaterial({
     map: texture,
     side: THREE.BackSide,
-    color: 0x444444,
-    opacity: 0.5,
   });
 
   const geometry = new THREE.SphereGeometry(radius, 32, 32);
@@ -590,7 +590,7 @@ function createUniverse(name, radius, manager) {
  */
 function createRing(name, innerRadius, outerRadius, manager) {
   const ringTextureLoader = new THREE.TextureLoader(manager);
-  const ringTexture = ringTextureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.png`);
+  const ringTexture = ringTextureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.webp`);
 
   ringTexture.colorSpace = THREE.SRGBColorSpace;
   const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 128);

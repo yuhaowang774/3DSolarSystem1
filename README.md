@@ -1,6 +1,6 @@
 # 3D Solar System · 星穹漫游
 
-基于 **Vue 3 + Vite + Three.js** 构建的 3D 交互式太阳系模拟与天文科普平台，采用 **SpaceX 任务控制台**视觉风格，部署于 **Cloudflare Pages**。
+基于 **Vue 3 + Vite + Three.js** 构建的 3D 交互式太阳系模拟与天文科普平台，采用 **SpaceX 任务控制台**视觉风格。
 
 > 精确天文计算 · 实时时间同步 · 时间穿越 · 天体科普 · 日下点校准法
 
@@ -25,8 +25,6 @@
 | Vite | ^6.0 | 构建工具 / 开发服务器 |
 | Three.js | ^0.170 | 3D 渲染引擎 |
 | CSS2DRenderer | 原生 | 天体标签（HTML 叠加层） |
-| Cloudflare Pages | — | 静态站点托管 / CDN |
-| Wrangler | ^3.99 | Cloudflare CLI 部署 |
 
 ## 📁 目录结构
 
@@ -75,29 +73,6 @@ npm run build
 # 本地预览构建产物
 npm run preview
 ```
-
-## ☁️ 部署到 Cloudflare Pages
-
-### 方式一：Git 集成（推荐，自动 CI/CD）
-
-1. 将代码推送到 GitHub 仓库（本项目远程：`https://github.com/yuhaowang774/3DSolarSystem1`）。
-2. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**。
-3. 选择仓库，构建设置如下：
-   - **Framework preset**：`Vite`
-   - **Build command**：`npm run build`
-   - **Build output directory**：`dist`
-4. 点击 **Save and Deploy**。之后每次 `git push` 自动重新部署。
-
-### 方式二：Wrangler CLI 直接部署
-
-```bash
-npm install -g wrangler
-wrangler login          # 浏览器授权
-npm run build           # 生成 dist/
-npm run deploy          # = build + wrangler pages deploy dist
-```
-
-> 本项目 `wrangler.toml` 已配置 `pages_build_output_dir = "dist"`。
 
 ## 🎮 操作指南
 

@@ -394,7 +394,13 @@ export class SolarSystem {
 
     const startPos = this.camera.position.clone();
     const startTarget = this.controls.target.clone();
-    const duration = 1200;
+    // 时长随飞行距离动态伸缩：近处约 0.7s，跨行星约 1.6s，
+    // 对数增长避免超远距离（如从太阳系边缘聚焦）耗时过久，上限 3.2s
+    const travelDistance = startPos.distanceTo(targetPos.clone().add(endOffset));
+    const duration = Math.min(
+      3200,
+      Math.max(700, 550 * Math.log10(1 + travelDistance / 20))
+    );
     const startTime = performance.now();
 
     this._isTransitioning = true;

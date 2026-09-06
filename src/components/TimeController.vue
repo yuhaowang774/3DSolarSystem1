@@ -16,6 +16,29 @@ const playing = computed(() => state.isPlaying);
 
 const currentLabel = computed(() => timePresets[currentIndex.value]?.label || "实时");
 
+// UTC 任务时钟（自 TopBar 迁入，simDate 每帧随模拟时间更新）
+const utcTime = computed(() => {
+  const d = state.simDate;
+  if (!d) return "--";
+  return d.toLocaleString("en-GB", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "UTC",
+  });
+});
+
+// 折叠态头部的紧凑时刻（时:分:秒）
+const timeShort = computed(() => {
+  const d = state.simDate;
+  if (!d) return "--:--:--";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+});
+
 function onSlider(e) {
   setPresetIndex(Number(e.target.value));
 }
@@ -25,10 +48,18 @@ function onSlider(e) {
   <div class="time-ctrl" :class="{ collapsed }">
     <button class="head" @click="toggleCollapse">
       <span class="label">TIME CONTROL</span>
-      <span class="chevron">{{ collapsed ? "▸" : "▾" }}</span>
+      <span class="head-right">
+        <span class="clock">{{ timeShort }} UTC</span>
+        <span class="chevron">{{ collapsed ? "▸" : "▾" }}</span>
+      </span>
     </button>
 
     <div v-if="!collapsed" class="body">
+      <div class="datetime">
+        <span class="datetime-main">{{ utcTime }}</span>
+        <span class="datetime-zone">UTC · MISSION CLOCK</span>
+      </div>
+
       <div class="status">
         <span class="mode" :class="{ live: realtime }">
           {{ realtime ? "● LIVE · REALTIME" : playing ? "▶ SIMULATING" : "❚❚ PAUSED" }}
@@ -65,9 +96,10 @@ function onSlider(e) {
 .time-ctrl {
   position: fixed;
   bottom: 28px;
-  left: 32px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 25;
-  width: 320px;
+  width: 380px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(6px);
@@ -90,6 +122,22 @@ function onSlider(e) {
   text-transform: uppercase;
   color: var(--ink);
 }
+.head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.clock {
+  font-family: "Archivo", sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+/* 展开后由面板内的大号时钟接管，避免重复 */
+.time-ctrl:not(.collapsed) .head .clock {
+  display: none;
+}
 .chevron {
   color: var(--ink-soft);
   font-size: 12px;
@@ -98,11 +146,34 @@ function onSlider(e) {
   padding: 0 16px 18px;
   border-top: 1px solid var(--line);
 }
+.datetime {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 16px 0 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.datetime-main {
+  font-family: "Archivo", sans-serif;
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: 1.5px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.datetime-zone {
+  font-family: "Archivo", sans-serif;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .status {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin: 16px 0 12px;
+  margin: 14px 0 12px;
 }
 .mode {
   font-family: "Archivo", sans-serif;
@@ -194,6 +265,7 @@ function onSlider(e) {
     left: 18px;
     right: 18px;
     width: auto;
+    transform: none;
   }
 }
 </style>

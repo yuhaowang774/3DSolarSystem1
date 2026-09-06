@@ -50,14 +50,15 @@ watch(
 );
 
 function close() {
+  // 仅收起面板：保留 selectedBody，右上角按钮再次打开时接着展示同一颗星球
   state.infoPanelOpen = false;
-  state.selectedBody = null;
   commands.closePanel?.();
 }
 </script>
 
 <template>
-  <aside v-if="planet && state.infoPanelOpen" class="info-panel">
+  <Transition name="panel">
+    <aside v-if="planet && state.infoPanelOpen" class="info-panel">
     <button class="close" @click="close" aria-label="close">×</button>
 
     <div class="head">
@@ -165,7 +166,8 @@ function close() {
         <div v-if="planet.extremeWeather" class="block"><h4>极端天气</h4><p>{{ planet.extremeWeather }}</p></div>
       </div>
     </div>
-  </aside>
+    </aside>
+  </Transition>
 </template>
 
 <style scoped>
@@ -181,11 +183,22 @@ function close() {
   backdrop-filter: blur(10px);
   padding: 72px 32px 32px;
   overflow-y: auto;
-  animation: slide-in 0.4s cubic-bezier(0.19, 1, 0.22, 1) forwards;
 }
-@keyframes slide-in {
-  from { transform: translateX(40px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+/* 面板展开/收起：右侧滑入滑出 + 淡入淡出（Vue Transition 驱动，进出场对称） */
+.panel-enter-active,
+.panel-leave-active {
+  transition: transform 0.45s cubic-bezier(0.19, 1, 0.22, 1),
+    opacity 0.45s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.panel-enter-from,
+.panel-leave-to {
+  transform: translateX(60px);
+  opacity: 0;
+}
+.panel-enter-to,
+.panel-leave-from {
+  transform: translateX(0);
+  opacity: 1;
 }
 .close {
   position: absolute;

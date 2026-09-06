@@ -1,19 +1,11 @@
 <script setup>
 import { state } from "../store/useStore.js";
 
-const formatted = () => {
-  const d = state.simDate;
-  if (!d) return "--";
-  return d.toLocaleString("en-GB", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    timeZone: "UTC",
-  }) + " UTC";
-};
+// 右上角信息面板开关：从未选中过天体时默认展示太阳
+function togglePanel() {
+  if (!state.selectedBody) state.selectedBody = "sun";
+  state.infoPanelOpen = !state.infoPanelOpen;
+}
 </script>
 
 <template>
@@ -22,7 +14,20 @@ const formatted = () => {
       <span class="brand-mark">◎</span>
       <span class="brand-name">SOLAR&nbsp;SYSTEM</span>
     </div>
-    <div class="clock">{{ formatted() }}</div>
+    <button
+      class="info-btn"
+      :class="{ active: state.infoPanelOpen }"
+      type="button"
+      title="PLANET INFO"
+      aria-label="Toggle planet info panel"
+      @click="togglePanel"
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="12" cy="12" r="9" />
+        <line x1="12" y1="11" x2="12" y2="16.5" />
+        <circle cx="12" cy="7.8" r="0.9" fill="currentColor" stroke="none" />
+      </svg>
+    </button>
   </header>
 </template>
 
@@ -57,13 +62,29 @@ const formatted = () => {
   text-transform: uppercase;
   color: var(--ink);
 }
-.clock {
-  font-family: "Archivo", sans-serif;
-  font-weight: 500;
-  font-size: 13px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--ink-soft);
+.info-btn {
+  pointer-events: auto;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease,
+    transform 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.info-btn:hover {
+  background: rgba(240, 240, 250, 0.1);
+  border-color: var(--ink);
+  transform: translateY(-1px);
+}
+.info-btn.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #000;
 }
 @media (max-width: 768px) {
   .top-bar {
@@ -73,8 +94,9 @@ const formatted = () => {
     font-size: 14px;
     letter-spacing: 2px;
   }
-  .clock {
-    font-size: 11px;
+  .info-btn {
+    width: 34px;
+    height: 34px;
   }
 }
 </style>

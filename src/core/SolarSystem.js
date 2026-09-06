@@ -17,7 +17,7 @@ import {
   measureModelSubsolarLongitude,
   performSubsolarCalibration,
 } from "../js/utils.js";
-import { planetData } from "../js/dats.js";
+import { planetData, cnNames } from "../js/dats.js";
 import {
   state,
   commands,
@@ -56,6 +56,9 @@ export class SolarSystem {
     // 相机聚焦过渡动画状态
     this._isTransitioning = false;
     this._transitionRaf = null;
+    // 相机锁定目标：与 UI 的选中状态解耦，关闭信息面板不会解除跟随
+    this.cameraTarget = null;
+    this._lockEl = null;
     // 指针拾取状态（用于区分「拖动旋转」与「点击选中」）
     this._pointerDown = null;
     this._hoverPending = false;
@@ -354,6 +357,7 @@ export class SolarSystem {
       const item = this.searchList.find((s) => s.name === name);
       if (item) this._selectAndFocus(item.mesh, item.offset);
     };
+    // 仅收起 UI：不解除相机锁定，否则关闭面板后天体会飞出视野
     commands.closePanel = () => {
       this.selectedCelestial = null;
     };
@@ -368,6 +372,10 @@ export class SolarSystem {
     this._cancelTransition();
 
     this.selectedCelestial = mesh;
+    // 锁定相机跟随目标：时间流动时相机持续跟随该天体
+    this.cameraTarget = mesh;
+    this._updateLockIndicator(mesh);
+
     const targetPos = new THREE.Vector3();
     mesh.getWorldPosition(targetPos);
 
@@ -443,13 +451,42 @@ export class SolarSystem {
     state.infoPanelOpen = true;
   }
 
-  /** 点击空白区域：取消聚焦，恢复自由漫游 */
-  _clearSelection() {
+  /** 解除相机锁定，恢复自由漫游（Esc 键或点击徽标上的 RELEASE） */
+  _unlockCamera() {
     this._cancelTransition();
+    this.cameraTarget = null;
     this.selectedCelestial = null;
     state.selectedBody = null;
     state.infoPanelOpen = false;
     if (this.renderer) this.renderer.domElement.style.cursor = "";
+    this._updateLockIndicator(null);
+  }
+
+  /** 锁定状态徽标：让「相机正在跟随某天体」这一状态可见且可主动解除 */
+  _updateLockIndicator(mesh) {
+    if (!this.container) return;
+
+    if (!mesh) {
+      if (this._lockEl) {
+        this._lockEl.remove();
+        this._lockEl = null;
+      }
+      return;
+    }
+
+    if (!this._lockEl) {
+      const el = document.createElement("div");
+      el.className = "camera-lock-badge";
+      el.innerHTML = `<span class="lock-dot"></span><span class="lock-txt"></span><button class="lock-release" type="button">RELEASE</button>`;
+      el.querySelector(".lock-release").addEventListener("click", () => this._unlockCamera());
+      this.container.appendChild(el);
+      this._lockEl = el;
+    }
+
+    const name = (mesh.name || "").toUpperCase();
+    const cn = cnNames[(mesh.name || "").toLowerCase()];
+    this._lockEl.querySelector(".lock-txt").textContent =
+      `LOCKED · ${name}${cn ? " / " + cn : ""}`;
   }
 
   /** 可拾取的天体网格（太阳 + 八大行星 + 月球） */
@@ -498,6 +535,7 @@ export class SolarSystem {
     dom.addEventListener("pointerleave", this._onPointerLeave);
     // 兜底：指针在画布外抬起时也复位，避免残留的按下状态阻塞 hover 检测
     window.addEventListener("pointerup", this._onWindowPointerUp);
+    window.addEventListener("keydown", this._onKeyDown);
   }
 
   _onResize = () => {
@@ -511,12 +549,12 @@ export class SolarSystem {
   };
 
   _onWheel = (event) => {
-    if (!this.selectedCelestial) return;
+    if (!this.cameraTarget) return;
     event.preventDefault();
     const targetPos = new THREE.Vector3();
-    this.selectedCelestial.getWorldPosition(targetPos);
+    this.cameraTarget.getWorldPosition(targetPos);
     const currentDistance = this.camera.position.distanceTo(targetPos);
-    const name = this.selectedCelestial.name.toLowerCase();
+    const name = this.cameraTarget.name.toLowerCase();
     const planetRadius = planetData[name]?.radius || 1;
     const safety = planetRadius > 10000 ? 1.5 : 1.2;
     const minDistance = planetRadius * safety;
@@ -549,8 +587,10 @@ export class SolarSystem {
     if (performance.now() - down.t > 600) return;
 
     const hit = this._pickAt(event.clientX, event.clientY);
+    // 仅命中天体时切换聚焦。点击空白不再解除锁定：
+    // 顶栏、搜索框外层等 UI 为 pointer-events:none，点击会穿透到画布，
+    // 若在此解除锁定会导致时间流动时视角不再跟随
     if (hit) this._focusByMesh(hit);
-    else this._clearSelection();
   };
 
   _onPointerMove = (event) => {
@@ -572,6 +612,10 @@ export class SolarSystem {
 
   _onWindowPointerUp = () => {
     this._pointerDown = null;
+  };
+
+  _onKeyDown = (event) => {
+    if (event.key === "Escape" && this.cameraTarget) this._unlockCamera();
   };
 
   _updatePlanets() {
@@ -708,8 +752,8 @@ export class SolarSystem {
       const sizeRatio = data.radius / planetData.earth.radius;
       const maxVisible = (data.a ? data.a[0] * 200000 : 10000) * sizeRatio;
       const isSelectedOrSat =
-        this.selectedCelestial === group.children[0] ||
-        (data.centralPlanet && this.selectedCelestial === this.celestialGroups[data.centralPlanet]?.children[0]);
+        this.cameraTarget === group.children[0] ||
+        (data.centralPlanet && this.cameraTarget === this.celestialGroups[data.centralPlanet]?.children[0]);
       const shouldBeVisible = isSelectedOrSat || distance < maxVisible;
       group.children.forEach((child) => {
         if (child.isMesh || child.isGroup) child.visible = shouldBeVisible;
@@ -749,9 +793,10 @@ export class SolarSystem {
     this._updateVisibility();
 
     // 过渡动画期间由 _selectAndFocus 独占相机控制，此处让行，避免两者互相覆盖
-    if (this.selectedCelestial && !this._isTransitioning) {
+    // 跟随 cameraTarget（而非 selectedCelestial）：关闭信息面板不会中断跟随
+    if (this.cameraTarget && !this._isTransitioning) {
       const targetPos = new THREE.Vector3();
-      this.selectedCelestial.getWorldPosition(targetPos);
+      this.cameraTarget.getWorldPosition(targetPos);
       const scaledOffset = this.cameraOffset.clone().multiplyScalar(this.distanceScale).applyQuaternion(this.camera.quaternion);
       let desired = targetPos.clone().add(scaledOffset);
       const sunPos = new THREE.Vector3();
@@ -794,6 +839,8 @@ export class SolarSystem {
       dom.removeEventListener("pointerleave", this._onPointerLeave);
     }
     window.removeEventListener("pointerup", this._onWindowPointerUp);
+    window.removeEventListener("keydown", this._onKeyDown);
+    this._updateLockIndicator(null);
     this.controls?.dispose();
     this.renderer?.dispose();
     if (this.renderer?.domElement?.parentNode) this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);

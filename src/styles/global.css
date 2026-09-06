@@ -71,6 +71,64 @@ body {
   letter-spacing: 2px;
 }
 
+/* ---------- 相机锁定状态徽标 ---------- */
+.camera-lock-badge {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 28;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 14px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  font-family: var(--font);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  animation: lock-in 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+}
+.camera-lock-badge .lock-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 8px rgba(240, 240, 250, 0.9);
+  animation: lock-pulse 1.6s ease-in-out infinite;
+}
+.camera-lock-badge .lock-txt {
+  white-space: nowrap;
+}
+.camera-lock-badge .lock-release {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+.camera-lock-badge .lock-release:hover {
+  background: var(--ink);
+  color: #000;
+  border-color: var(--ink);
+}
+@keyframes lock-in {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes lock-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
 /* ---------- 滚动条（信息面板） ---------- */
 ::-webkit-scrollbar {
   width: 6px;
@@ -89,5 +147,11 @@ body {
 @media (max-width: 768px) {
   :root {
     --line: #23252c;
+  }
+  /* 避开顶部搜索框 */
+  .camera-lock-badge {
+    top: 108px;
+    font-size: 10px;
+    padding: 6px 6px 6px 12px;
   }
 }

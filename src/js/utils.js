@@ -131,6 +131,64 @@ function centuriesSinceJ2000(JD) {
 }
 
 /**
+ * ΔT（TT − UT1，此处以 TT − UTC 近似）估算
+ * Espenak & Meeus 2005-2050 区间多项式；区间外按 2024 年实测值线性外推
+ * @param {Date} date - UTC 日期对象
+ * @returns {number} ΔT（秒）
+ */
+function getDeltaT(date) {
+  const y =
+    date.getUTCFullYear() +
+    (date.getUTCMonth() + (date.getUTCDate() - 1) / 31) / 12;
+  if (y >= 2005 && y <= 2050) {
+    const t = y - 2000;
+    return 62.92 + 0.32217 * t + 0.005589 * t * t;
+  }
+  return 69.2 + (y - 2024) * 0.5;
+}
+
+/**
+ * 基于 TT（地球时）的儒略日
+ * 轨道要素表与太阳理论均以 TT 为时间引数，UTC 直接当 TT 使用会引入
+ * ΔT（约 69 秒）对应的引数误差（月球约 38″，行星约 3″）
+ * @param {Date} date - UTC 日期对象
+ * @returns {number} 儒略日（TT）
+ */
+function julianDateTT(date) {
+  return julianDate(date) + getDeltaT(date) / 86400;
+}
+
+/**
+ * 月球平黄经的主要周期摄动项（度）
+ * Meeus《Astronomical Algorithms》第 47 章截断版
+ * 注意：最大的「偏心差」6.289°·sin(M') 已由椭圆模型的开普勒方程自然覆盖，
+ * 此处仅补充椭圆要素模型缺失的周期项，将月球经度误差从约 ±1.5° 降至约 ±0.2°
+ * @param {number} T - 自 J2000.0 的儒略世纪数（TT）
+ * @returns {number} 经度修正（度）
+ */
+function lunarLongitudePerturbation(T) {
+  const D = degreesToRadians(
+    297.8501921 + 445267.1114034 * T - 0.0018819 * T * T
+  ); // 平距角（日月）
+  const M = degreesToRadians(
+    357.5291092 + 35999.0502909 * T - 0.0001536 * T * T
+  ); // 太阳平近点角
+  const Mp = degreesToRadians(
+    134.9633964 + 477198.8675055 * T + 0.0087414 * T * T
+  ); // 月球平近点角
+  const F = degreesToRadians(
+    93.272095 + 483202.0175233 * T - 0.0036539 * T * T
+  ); // 月球升交点距角
+  return (
+    1.274 * Math.sin(2 * D - Mp) + // 出差（Evection）
+    0.658 * Math.sin(2 * D) + // 二均差（Variation）
+    0.214 * Math.sin(2 * Mp) + // 年差（Annual equation）
+    -0.186 * Math.sin(M) + // 月角差（Equation of year）
+    -0.114 * Math.sin(2 * F) // 升交点经度项
+  );
+}
+
+/**
  * 角度转弧度
  * @param {number} degrees - 角度值
  * @returns {number} 弧度值
@@ -214,7 +272,7 @@ function calculateOrbitPosition(
   centralPos = new THREE.Vector3(0, 0, 0)
 ) {
   try {
-    const JD = julianDate(date);
+    const JD = julianDateTT(date); // 轨道要素以 TT 为引数
     const T = centuriesSinceJ2000(JD);
 
     // 计算轨道参数（包含长期变化）
@@ -222,7 +280,11 @@ function calculateOrbitPosition(
       (celestialData.a[0] + celestialData.a[1] * T) * planetData.common.AU;
     const e = celestialData.e[0] + celestialData.e[1] * T;
     const I = degreesToRadians(celestialData.I[0] + celestialData.I[1] * T);
-    const L = degreesToRadians(celestialData.L[0] + celestialData.L[1] * T);
+    let L = degreesToRadians(celestialData.L[0] + celestialData.L[1] * T);
+    // 月球：叠加椭圆要素模型未包含的主要周期摄动
+    if (celestialData === planetData.moon) {
+      L += degreesToRadians(lunarLongitudePerturbation(T));
+    }
     const longPeri = degreesToRadians(
       celestialData.longPeri[0] + celestialData.longPeri[1] * T
     );
@@ -349,8 +411,8 @@ function createOrbit(str, date = new Date()) {
   const isSatellite = !!data.centralPlanet;
   const pointCount = isSatellite ? 256 : 1024; // 卫星轨道点数较少，行星轨道1024点足够平滑
 
-  // 计算轨道参数 - 使用传入的时间来计算长期变化
-  const JD = julianDate(date);
+  // 计算轨道参数 - 使用传入的时间来计算长期变化（TT 引数）
+  const JD = julianDateTT(date);
   const T = centuriesSinceJ2000(JD);
   let a = (data.a[0] + data.a[1] * T) * planetData.common.AU;
   const e = data.e[0] + data.e[1] * T;
@@ -424,8 +486,8 @@ function updateOrbitVertices(orbitLine, date) {
     const data = orbitData.data;
     const angles = orbitData.angles;
 
-    // 计算新的轨道参数
-    const JD = julianDate(date);
+    // 计算新的轨道参数（TT 引数）
+    const JD = julianDateTT(date);
     const T = centuriesSinceJ2000(JD);
     let a = (data.a[0] + data.a[1] * T) * planetData.common.AU;
     const e = data.e[0] + data.e[1] * T;
@@ -687,23 +749,46 @@ function createLocationMarker(lat, lon, planetRadius, label = "") {
  */
 
 /**
+ * 太阳视黄经（度）
+ * Meeus《Astronomical Algorithms》第 25 章：几何平黄经 + 中心差 + 光行差 + 章动主要项
+ * 精度约 0.01°（取代原实现所依据的低精度经验简式）
+ * @param {number} T - 自 J2000.0 的儒略世纪数（TT）
+ * @returns {number} 太阳视黄经（度）
+ */
+function solarApparentLongitude(T) {
+  const L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T; // 几何平黄经
+  const M = degreesToRadians(357.52911 + 35999.05029 * T - 0.0001537 * T * T); // 平近点角
+  const C =
+    (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(M) +
+    (0.019993 - 0.000101 * T) * Math.sin(2 * M) +
+    0.000289 * Math.sin(3 * M); // 中心差
+  const omega = degreesToRadians(125.04 - 1934.136 * T); // 月球升交点平黄经
+  return L0 + C - 0.00569 - 0.00478 * Math.sin(omega); // 含光行差(-0.00569)与章动经度项
+}
+
+/**
  * 计算均时差（Equation of Time）
+ * 由「太阳几何平黄经 − 视赤经」直接求得（含光行差常数修正），
+ * 取代原 NOAA 经验简式（误差约 ±1 分钟 → 本实现约 ±5 秒），
+ * 直接决定日下点经度的准确性（1 分钟均时差 ≈ 0.25° 经度）
  * @param {Date} utcDate - UTC日期对象
  * @returns {number} 均时差（分钟），正值表示真太阳比平太阳快
  */
 function calculateEquationOfTime(utcDate) {
-  // 计算一年中的第几天
-  const startOfYear = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
-  const dayOfYear =
-    Math.floor((utcDate - startOfYear) / (1000 * 60 * 60 * 24)) + 1;
-
-  // B = 360/365 * (d - 81)，转换为弧度
-  const B = degToRad((360 / 365) * (dayOfYear - 81));
-
-  // 均时差公式（分钟）
-  const EoT = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
-
-  return EoT;
+  const T = centuriesSinceJ2000(julianDateTT(utcDate));
+  const L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T; // 几何平黄经
+  const lambda = degreesToRadians(solarApparentLongitude(T)); // 视黄经
+  const omega = degreesToRadians(125.04 - 1934.136 * T);
+  // 黄赤交角（IAU 1980 多项式 + 章动交角主要项）
+  const eps0 = 23.43929111 - 0.01300417 * T - 0.00000016 * T * T;
+  const eps = degreesToRadians(eps0 + 0.00256 * Math.cos(omega));
+  // 太阳视赤经
+  const alpha = Math.atan2(Math.cos(eps) * Math.sin(lambda), Math.cos(lambda));
+  let eotDeg = L0 - 0.0057183 - radToDeg(alpha); // 平黄经 − 视赤经（含光行差常数）
+  // 归一化到 -180 ~ 180
+  while (eotDeg > 180) eotDeg -= 360;
+  while (eotDeg < -180) eotDeg += 360;
+  return eotDeg * 4; // 度 → 分钟
 }
 
 /**

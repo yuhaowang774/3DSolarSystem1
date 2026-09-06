@@ -420,4 +420,18 @@ const planetData = {
   },
 };
 
-export { planetData };
+// 天体中文名映射（UI 展示用，避免各组件重复维护）
+const cnNames = {
+  sun: "太阳",
+  mercury: "水星",
+  venus: "金星",
+  earth: "地球",
+  moon: "月球",
+  mars: "火星",
+  jupiter: "木星",
+  saturn: "土星",
+  uranus: "天王星",
+  neptune: "海王星",
+};
+
+export { planetData, cnNames };

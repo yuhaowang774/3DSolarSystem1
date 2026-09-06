@@ -2,9 +2,6 @@
 import { computed, ref, onMounted } from "vue";
 import { state } from "../store/useStore.js";
 
-const pct = computed(() => Math.round(state.loadingProgress));
-const stage = computed(() => STAGES[Math.min(STAGES.length - 1, state.loadingStage)] || STAGES[0]);
-
 // 任务序列步骤（与 SolarSystem.js 中 STAGES 对应）
 const STAGES = [
   "ACQUIRING TELEMETRY LINK",
@@ -13,6 +10,9 @@ const STAGES = [
   "RENDERING STAR FIELD",
   "SYSTEMS NOMINAL",
 ];
+
+const pct = computed(() => Math.round(state.loadingProgress));
+const stage = computed(() => STAGES[Math.min(STAGES.length - 1, state.loadingStage)] || STAGES[0]);
 
 // 真实旋转角度：由 requestAnimationFrame 驱动，独立于加载进度
 const spin = ref(0);

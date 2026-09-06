@@ -52,7 +52,18 @@ export class SolarSystem {
 
     this.cameraOffset = new THREE.Vector3(0, 0, 200);
     this.distanceScale = 0.02;
-    this.isAutoMoving = false;
+
+    // 相机聚焦过渡动画状态
+    this._isTransitioning = false;
+    this._transitionRaf = null;
+    // 指针拾取状态（用于区分「拖动旋转」与「点击选中」）
+    this._pointerDown = null;
+    this._hoverPending = false;
+    this._pickTargets = [];
+
+    // 轨道长期变化增量更新的基准时间（必须在构造时初始化，否则 yearsDiff 恒为 NaN）
+    this._lastOrbitUpdateDate = new Date(this.simulatedDate.getTime());
+    this._lastOrbitUpdateTime = 0;
 
     this.searchList = [];
     this._tmpVec = new THREE.Vector3();
@@ -99,7 +110,6 @@ export class SolarSystem {
     if (done) {
       state.loadingProgress = 100;
       state.loadingStage = STAGES.length - 1;
-      state.loadingText = "SYSTEMS ONLINE";
     }
   }
 
@@ -204,12 +214,7 @@ export class SolarSystem {
       const orbit = createOrbit(name, this.simulatedDate);
       this.orbits[name] = orbit;
 
-      if (data.centralPlanet) {
-        const parent = this.celestialGroups[data.centralPlanet];
-        if (parent) parent.add(orbit);
-      } else {
-        this.orbitGroup.add(orbit);
-      }
+      this._orbitParentFor(name).add(orbit);
 
       if (data.centralPlanet) {
         const parent = this.celestialGroups[data.centralPlanet];
@@ -290,11 +295,7 @@ export class SolarSystem {
       boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
     });
 
-    const handleClick = () => {
-      this._selectAndFocus(mesh, planetData[mesh.name.toLowerCase()]?.radius || 100);
-      state.selectedBody = mesh.name.toLowerCase();
-      state.infoPanelOpen = true;
-    };
+    const handleClick = () => this._focusByMesh(mesh);
     iconDiv.addEventListener("click", handleClick);
     iconDiv.addEventListener("touchstart", (e) => { e.preventDefault(); handleClick(); }, { passive: false });
 
@@ -344,11 +345,7 @@ export class SolarSystem {
   _bindCommands() {
     commands.focusBody = (name) => {
       const item = this.searchList.find((s) => s.name === name);
-      if (item) {
-        this._selectAndFocus(item.mesh, item.offset);
-        state.selectedBody = name;
-        state.infoPanelOpen = true;
-      }
+      if (item) this._focusByMesh(item.mesh);
     };
     commands.setTimeScale = () => {};
     commands.togglePlay = () => {};
@@ -362,39 +359,145 @@ export class SolarSystem {
     };
   }
 
+  /**
+   * 聚焦到指定天体：计算安全视距并播放相机过渡动画
+   * 过渡期间由本方法独占相机控制（animate 会跳过跟随），避免两者互相覆盖导致抖动
+   */
   _selectAndFocus(mesh, radius) {
+    if (!mesh) return;
+    this._cancelTransition();
+
     this.selectedCelestial = mesh;
     const targetPos = new THREE.Vector3();
     mesh.getWorldPosition(targetPos);
+
     const fovRad = this.camera.fov * (Math.PI / 180);
     const tanHalf = Math.tan(fovRad / 2);
     const fixedDistance = (radius * this.container.clientHeight) / (500 * tanHalf);
     const safety = radius > 10000 ? 1.5 : 1.2;
     const finalDistance = Math.max(fixedDistance, radius * safety);
+
+    // 保持当前观察方向：偏移固定为「相机后方 × 安全视距」
     this.cameraOffset.set(0, 0, finalDistance);
     this.distanceScale = 1;
-    this.isAutoMoving = true;
+    const endOffset = this.cameraOffset
+      .clone()
+      .applyQuaternion(this.camera.quaternion);
+
     const startPos = this.camera.position.clone();
     const startTarget = this.controls.target.clone();
-    const duration = 1000;
+    const duration = 1200;
     const startTime = performance.now();
+
+    this._isTransitioning = true;
+    this.controls.enabled = false;
+
     const animateTransition = (now) => {
       if (this._disposed) return;
       const progress = Math.min((now - startTime) / duration, 1);
-      const ease = progress * (2 - progress);
-      const scaledOffset = this.cameraOffset.clone().multiplyScalar(this.distanceScale).applyQuaternion(this.camera.quaternion);
-      this.camera.position.lerpVectors(startPos, targetPos.clone().add(scaledOffset), ease);
-      this.controls.target.lerpVectors(startTarget, targetPos, ease);
+      // easeInOutCubic：起步与收尾都平滑，符合任务控制的电影感节奏
+      const ease =
+        progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+      // 天体在运动，每帧重新取世界坐标，保证动画终点不脱靶
+      const movingTarget = new THREE.Vector3();
+      mesh.getWorldPosition(movingTarget);
+
+      this.camera.position.lerpVectors(
+        startPos,
+        movingTarget.clone().add(endOffset),
+        ease
+      );
+      this.controls.target.lerpVectors(startTarget, movingTarget, ease);
       this.controls.update();
-      if (progress < 1) requestAnimationFrame(animateTransition);
-      else setTimeout(() => { this.isAutoMoving = false; }, 300);
+
+      if (progress < 1) {
+        this._transitionRaf = requestAnimationFrame(animateTransition);
+      } else {
+        this._transitionRaf = null;
+        this._isTransitioning = false;
+        this.controls.enabled = true;
+      }
     };
-    requestAnimationFrame(animateTransition);
+    this._transitionRaf = requestAnimationFrame(animateTransition);
+  }
+
+  _cancelTransition() {
+    if (this._transitionRaf) {
+      cancelAnimationFrame(this._transitionRaf);
+      this._transitionRaf = null;
+    }
+    this._isTransitioning = false;
+    if (this.controls) this.controls.enabled = true;
+  }
+
+  /** 通用聚焦入口：根据 mesh 反查天体数据，聚焦并打开信息面板 */
+  _focusByMesh(mesh) {
+    if (!mesh) return;
+    const name = (mesh.name || "").toLowerCase();
+    const data = planetData[name];
+    this._selectAndFocus(mesh, data ? data.radius : 100);
+    state.selectedBody = name || null;
+    state.infoPanelOpen = true;
+  }
+
+  /** 点击空白区域：取消聚焦，恢复自由漫游 */
+  _clearSelection() {
+    this._cancelTransition();
+    this.selectedCelestial = null;
+    state.selectedBody = null;
+    state.infoPanelOpen = false;
+    if (this.renderer) this.renderer.domElement.style.cursor = "";
+  }
+
+  /** 可拾取的天体网格（太阳 + 八大行星 + 月球） */
+  _getPickTargets() {
+    if (!this._pickTargets.length) {
+      this._pickTargets = [this.sun, ...Object.values(this.planets)];
+    }
+    return this._pickTargets;
+  }
+
+  /** 沿父链判断是否可见：被视距剔除隐藏的天体不参与拾取 */
+  _isRenderVisible(obj) {
+    let node = obj;
+    while (node) {
+      if (node.visible === false) return false;
+      node = node.parent;
+    }
+    return true;
+  }
+
+  /** 屏幕坐标 → 命中的天体网格 */
+  _pickAt(clientX, clientY) {
+    if (!this.renderer || !this.camera) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const ndc = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const hits = this.raycaster.intersectObjects(this._getPickTargets(), false);
+    for (const hit of hits) {
+      if (this._isRenderVisible(hit.object)) return hit.object;
+    }
+    return null;
   }
 
   _bindInput() {
     window.addEventListener("wheel", this._onWheel, { passive: false });
     window.addEventListener("resize", this._onResize);
+    // 画布上的指针事件：点击天体聚焦、悬停反馈
+    const dom = this.renderer.domElement;
+    dom.addEventListener("pointerdown", this._onPointerDown);
+    dom.addEventListener("pointerup", this._onPointerUp);
+    dom.addEventListener("pointermove", this._onPointerMove);
+    dom.addEventListener("pointerleave", this._onPointerLeave);
+    // 兜底：指针在画布外抬起时也复位，避免残留的按下状态阻塞 hover 检测
+    window.addEventListener("pointerup", this._onWindowPointerUp);
   }
 
   _onResize = () => {
@@ -427,6 +530,48 @@ export class SolarSystem {
     const scaledOffset = this.cameraOffset.clone().multiplyScalar(this.distanceScale).applyQuaternion(this.camera.quaternion);
     this.camera.position.copy(targetPos).add(scaledOffset);
     this.controls.update();
+  };
+
+  _onPointerDown = (event) => {
+    this._pointerDown = {
+      x: event.clientX,
+      y: event.clientY,
+      t: performance.now(),
+    };
+  };
+
+  _onPointerUp = (event) => {
+    const down = this._pointerDown;
+    this._pointerDown = null;
+    if (!down || this._disposed) return;
+    // 拖动旋转或长按不视为「点击」
+    if (Math.hypot(event.clientX - down.x, event.clientY - down.y) > 6) return;
+    if (performance.now() - down.t > 600) return;
+
+    const hit = this._pickAt(event.clientX, event.clientY);
+    if (hit) this._focusByMesh(hit);
+    else this._clearSelection();
+  };
+
+  _onPointerMove = (event) => {
+    if (this._pointerDown || this._hoverPending) return;
+    this._hoverPending = true;
+    const { clientX, clientY } = event;
+    requestAnimationFrame(() => {
+      this._hoverPending = false;
+      if (this._disposed || !this.renderer) return;
+      const hit = this._pickAt(clientX, clientY);
+      this.renderer.domElement.style.cursor = hit ? "pointer" : "";
+    });
+  };
+
+  _onPointerLeave = () => {
+    this._pointerDown = null;
+    if (this.renderer) this.renderer.domElement.style.cursor = "";
+  };
+
+  _onWindowPointerUp = () => {
+    this._pointerDown = null;
   };
 
   _updatePlanets() {
@@ -513,6 +658,11 @@ export class SolarSystem {
   }
 
   _updateOrbits() {
+    const now = performance.now();
+    // 真实时间内的最小更新间隔：高倍速档位下模拟时间每帧跨越数天，
+    // 若不做节流会导致每帧重算全部轨道顶点（8×1024）
+    if (now - this._lastOrbitUpdateTime < 200) return;
+
     const yearsDiff = (this.simulatedDate - this._lastOrbitUpdateDate) / (1000 * 60 * 60 * 24 * 365);
     if (Math.abs(yearsDiff) >= 1 / 52) {
       Object.keys(this.orbits).forEach((name) => {
@@ -528,16 +678,24 @@ export class SolarSystem {
         }
       });
       this._lastOrbitUpdateDate = new Date(this.simulatedDate.getTime());
+      this._lastOrbitUpdateTime = now;
     }
   }
 
+  // 轨道线挂载父级：卫星 -> 中心天体 group；行星 -> orbitGroup
+  _orbitParentFor(name) {
+    const central = planetData[name] && planetData[name].centralPlanet;
+    return (central && this.celestialGroups[central]) || this.orbitGroup;
+  }
+
   _rebuildOrbit(name) {
-    if (this.orbits[name] && this.orbits[name].parent) {
-      this.orbits[name].parent.remove(this.orbits[name]);
-    }
+    const oldOrbit = this.orbits[name];
+    // 保留原有父级，否则卫星轨道会被错误地挂到 orbitGroup 下而与中心天体脱钩
+    const parent = (oldOrbit && oldOrbit.parent) || this._orbitParentFor(name);
+    if (oldOrbit && oldOrbit.parent) oldOrbit.parent.remove(oldOrbit);
     const newOrbit = createOrbit(name, this.simulatedDate);
     this.orbits[name] = newOrbit;
-    this.orbitGroup.add(newOrbit);
+    parent.add(newOrbit);
   }
 
   _updateVisibility() {
@@ -556,7 +714,7 @@ export class SolarSystem {
       group.children.forEach((child) => {
         if (child.isMesh || child.isGroup) child.visible = shouldBeVisible;
       });
-      if (this.orbits[name]) this.orbits[name].visible = shouldBeVisible && true;
+      if (this.orbits[name]) this.orbits[name].visible = shouldBeVisible;
     });
   }
 
@@ -590,7 +748,8 @@ export class SolarSystem {
     this._updateSpriteSize(this.sunHalo);
     this._updateVisibility();
 
-    if (this.selectedCelestial) {
+    // 过渡动画期间由 _selectAndFocus 独占相机控制，此处让行，避免两者互相覆盖
+    if (this.selectedCelestial && !this._isTransitioning) {
       const targetPos = new THREE.Vector3();
       this.selectedCelestial.getWorldPosition(targetPos);
       const scaledOffset = this.cameraOffset.clone().multiplyScalar(this.distanceScale).applyQuaternion(this.camera.quaternion);
@@ -624,8 +783,17 @@ export class SolarSystem {
   dispose() {
     this._disposed = true;
     if (this._raf) cancelAnimationFrame(this._raf);
+    this._cancelTransition();
     window.removeEventListener("resize", this._onResize);
     window.removeEventListener("wheel", this._onWheel);
+    const dom = this.renderer?.domElement;
+    if (dom) {
+      dom.removeEventListener("pointerdown", this._onPointerDown);
+      dom.removeEventListener("pointerup", this._onPointerUp);
+      dom.removeEventListener("pointermove", this._onPointerMove);
+      dom.removeEventListener("pointerleave", this._onPointerLeave);
+    }
+    window.removeEventListener("pointerup", this._onWindowPointerUp);
     this.controls?.dispose();
     this.renderer?.dispose();
     if (this.renderer?.domElement?.parentNode) this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);

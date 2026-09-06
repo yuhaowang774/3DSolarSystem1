@@ -33,8 +33,11 @@
 ├── index.html                  # Vite 入口
 ├── vite.config.js              # Vite 配置
 ├── wrangler.toml               # Cloudflare Pages 配置
+├── assets/                     # 原始纹理素材（jpg/png，不参与构建）
+├── scripts/
+│   └── optimize-textures.mjs   # 纹理优化：assets/ → public/assets/ 转 webp 压缩
 ├── public/
-│   └── assets/                 # 纹理资源（行星、光环、星空），构建时原样拷贝
+│   └── assets/                 # 优化后的 webp 纹理，构建时原样拷贝
 └── src/
     ├── main.js                 # Vue 应用入口
     ├── App.vue                 # 根组件（组合各 UI 层 + 3D 场景）
@@ -54,8 +57,8 @@
     ├── styles/
     │   └── global.css           # SpaceX 风格设计系统（CSS 变量 / 字体 / 通用排版）
     └── js/
-        ├── utils.js             # 天文计算与天体创建工具（保留自原项目）
-        └── dats.js              # 天体数据配置（保留自原项目）
+        ├── utils.js             # 天文计算、天体创建、日下点校准法
+        └── dats.js              # 天体数据配置（轨道要素 + 科普文案 + 中文名）
 ```
 
 ## 🚀 本地开发
@@ -72,6 +75,9 @@ npm run build
 
 # 本地预览构建产物
 npm run preview
+
+# （可选）重新生成 webp 纹理：sharp 为按需安装的开发工具，未列入常规依赖
+npm i -D sharp && npm run optimize:textures
 ```
 
 ## 🎮 操作指南
@@ -81,8 +87,11 @@ npm run preview
 | 旋转视角 | 左键拖动 | 单指拖动 |
 | 缩放 | 滚轮 | 双指捏合 |
 | 平移 | 中键拖动 | 双指拖动 |
-| 聚焦天体 | 点击天体标签 | 点击天体标签 |
-| 查看信息 | 点击标签展开信息面板 | 同左 |
+| 聚焦天体 | 点击天体本体 / 标签 | 点击天体本体 / 标签 |
+| 查看信息 | 点击后自动展开信息面板 | 同左 |
+| 取消聚焦 | 点击空白区域 | 点击空白区域 |
+
+点击天体后，相机会以 easeInOutCubic 缓动（1.2s）平滑飞行至该天体的安全视距，并在飞行过程中持续跟随其运动轨迹；悬停在天体上时光标变为手型。
 
 底部中央为时间控制器，可展开完整面板，通过滑块或按钮调节时间流速与方向。
 

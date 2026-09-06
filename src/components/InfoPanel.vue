@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { state, commands } from "../store/useStore.js";
-import { planetData } from "../js/dats.js";
+import { planetData, cnNames } from "../js/dats.js";
 
 const tab = ref("physical");
 const TABS = [
@@ -18,6 +18,10 @@ const planet = computed(() => {
   const n = state.selectedBody;
   return n && planetData[n] ? planetData[n] : null;
 });
+
+// 中文名优先，缺失时回退到数据中的英文标识
+const cnName = computed(() => (state.selectedBody ? cnNames[state.selectedBody] || "" : ""));
+const isEarth = computed(() => state.selectedBody === "earth");
 
 const colorHex = computed(() => {
   const c = planet.value?.color;
@@ -58,7 +62,7 @@ function close() {
 
     <div class="head">
       <span class="dot" :style="{ background: colorHex }"></span>
-      <h2>{{ planet.name.toUpperCase() }}</h2>
+      <h2>{{ cnName || planet.name.toUpperCase() }}</h2>
       <span class="sub">{{ (planet.radius || 0) + " ×10⁴ KM" }}</span>
     </div>
 
@@ -111,6 +115,17 @@ function close() {
         <div class="cell"><span>自转周期</span><b>{{ rotation }}</b></div>
         <div class="cell"><span>轴倾角</span><b>{{ planet.inc != null ? planet.inc + "°" : "未知" }}</b></div>
         <div class="cell"><span>自转方向</span><b>{{ planet.dir === 0 ? "顺行" : "逆行" }}</b></div>
+      </div>
+      <div v-if="tab === 'rotation' && isEarth" class="block">
+        <h4>日下点校准</h4>
+        <p>
+          已启用「日下点差量校准法」，模型昼夜分界线与 UTC 时间同步。
+          <template v-if="state.debugInfo">
+            启动时刻真实日下点经度 <b>{{ state.debugInfo.trueSubsolarLon.toFixed(2) }}°</b>，
+            模型原始经度 <b>{{ state.debugInfo.modelSubsolarLon.toFixed(2) }}°</b>，
+            校准旋转 <b>{{ state.debugInfo.calibrationAngleDeg.toFixed(2) }}°</b>。
+          </template>
+        </p>
       </div>
 
       <!-- 卫星 -->

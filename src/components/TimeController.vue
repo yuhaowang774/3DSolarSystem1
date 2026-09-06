@@ -8,10 +8,7 @@ import {
   togglePlay,
   toggleRealtime,
   toggleCollapse,
-  initTimeController,
 } from "../composables/useTimeController.js";
-
-initTimeController();
 
 const collapsed = computed(() => state.timeCollapsed);
 const realtime = computed(() => state.isRealtime);

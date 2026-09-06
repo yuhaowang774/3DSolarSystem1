@@ -531,6 +531,7 @@ function createSun(name, radius, manager) {
   const material = new THREE.MeshBasicMaterial({ map: texture });
   const geometry = new THREE.SphereGeometry(radius, 64, 64);
   const sun = new THREE.Mesh(geometry, material);
+  sun.name = name;
   return sun;
 }
 

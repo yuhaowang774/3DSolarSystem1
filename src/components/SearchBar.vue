@@ -1,22 +1,17 @@
 <script setup>
-import { ref, computed, watch } from "vue";
-import { state, commands } from "../store/useStore.js";
+import { ref, computed } from "vue";
+import { commands } from "../store/useStore.js";
+import { cnNames } from "../js/dats.js";
 
 const query = ref("");
 const open = ref(false);
 
-const list = [
-  { name: "sun", cn: "太阳", en: "SUN" },
-  { name: "mercury", cn: "水星", en: "MERCURY" },
-  { name: "venus", cn: "金星", en: "VENUS" },
-  { name: "earth", cn: "地球", en: "EARTH" },
-  { name: "moon", cn: "月球", en: "MOON" },
-  { name: "mars", cn: "火星", en: "MARS" },
-  { name: "jupiter", cn: "木星", en: "JUPITER" },
-  { name: "saturn", cn: "土星", en: "SATURN" },
-  { name: "uranus", cn: "天王星", en: "URANUS" },
-  { name: "neptune", cn: "海王星", en: "NEPTUNE" },
-];
+// 中文名统一由 dats.js 维护，避免多处重复定义
+const list = Object.keys(cnNames).map((name) => ({
+  name,
+  cn: cnNames[name],
+  en: name.toUpperCase(),
+}));
 
 const results = computed(() => {
   const q = query.value.trim().toLowerCase();

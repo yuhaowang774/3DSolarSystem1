@@ -1,11 +1,14 @@
-// 纹理优化脚本：将 public/assets 下纹理转为 webp 并压缩，降低分辨率
+// 纹理优化脚本：将 assets/ 下的原始纹理转为 webp 压缩后输出到 public/assets/
+// 源文件保留在 assets/ 中，脚本可重复执行（幂等）
+// 运行前需安装依赖：npm i -D sharp
 import sharp from "sharp";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ASSET_DIR = path.resolve(__dirname, "../public/assets");
+const SRC_DIR = path.resolve(__dirname, "../assets");
+const OUT_DIR = path.resolve(__dirname, "../public/assets");
 
 // 各纹理目标最大边（px），星空/地球可稍大，其余行星贴图 2048 足够
 const MAX_EDGE = {
@@ -26,25 +29,29 @@ const MAX_EDGE = {
   "neptuneRing.png": 2048,
 };
 
-// 需要删除的无用文件
-const UNUSED = ["earth_normal_map.png", "earth_specular_map.png"];
+// 输出目录中需要清理的无用文件
+const UNUSED = ["earth_normal_map.webp", "earth_specular_map.webp"];
 
 const JPG_QUALITY = 82;
 const PNG_QUALITY = 90;
 
 async function processFile(file) {
-  const src = path.join(ASSET_DIR, file);
-  if (!fs.existsSync(src)) return;
+  const src = path.join(SRC_DIR, file);
+  if (!fs.existsSync(src)) {
+    console.warn(`skip (missing source): ${file}`);
+    return;
+  }
   const isJpg = file.toLowerCase().endsWith(".jpg");
   const base = path.basename(file, path.extname(file));
-  const out = path.join(ASSET_DIR, base + ".webp");
+  const out = path.join(OUT_DIR, base + ".webp");
   const maxEdge = MAX_EDGE[file] || 2048;
 
   const img = sharp(src, { limitInputPixels: false });
   const meta = await img.metadata();
-  const resizeOpt = meta.width > maxEdge || meta.height > maxEdge
-    ? { width: maxEdge, height: maxEdge, fit: "inside", withoutEnlargement: true }
-    : undefined;
+  const resizeOpt =
+    meta.width > maxEdge || meta.height > maxEdge
+      ? { width: maxEdge, height: maxEdge, fit: "inside", withoutEnlargement: true }
+      : undefined;
 
   if (isJpg) {
     await img.resize(resizeOpt).webp({ quality: JPG_QUALITY }).toFile(out);
@@ -60,16 +67,13 @@ async function processFile(file) {
 }
 
 async function main() {
-  const files = Object.keys(MAX_EDGE);
-  for (const f of files) await processFile(f);
+  if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
 
-  // 删除原文件与无用文件
-  for (const f of files) {
-    const p = path.join(ASSET_DIR, f);
-    if (fs.existsSync(p)) fs.unlinkSync(p);
-  }
+  for (const f of Object.keys(MAX_EDGE)) await processFile(f);
+
+  // 清理输出目录中的无用文件（源文件 assets/ 保持不变）
   for (const f of UNUSED) {
-    const p = path.join(ASSET_DIR, f);
+    const p = path.join(OUT_DIR, f);
     if (fs.existsSync(p)) {
       fs.unlinkSync(p);
       console.log(`removed unused: ${f}`);

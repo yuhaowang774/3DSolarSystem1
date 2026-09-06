@@ -108,6 +108,10 @@ function close() {
           <div class="cell"><span>平近点角</span><b>{{ planet.meanAnomaly != null ? planet.meanAnomaly + "°" : "未知" }}</b></div>
           <div class="cell"><span>朔望周期</span><b>{{ planet.synodicPeriod != null ? planet.synodicPeriod.toFixed(2) + " 天" : "未知" }}</b></div>
         </div>
+        <div v-if="planet.a" class="block">
+          <h4>关于轨道形状</h4>
+          <p>轨道线为按真实轨道要素绘制的开普勒椭圆：太阳位于焦点而非几何中心，椭圆中心相对太阳的偏移量为「半长轴 × 偏心率」，与 NASA JPL 数据一致，行星始终精确运行在轨道线上。</p>
+        </div>
         <div v-else class="notice">中心天体 · 无轨道参数</div>
       </div>
 

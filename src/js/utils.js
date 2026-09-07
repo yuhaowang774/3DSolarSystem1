@@ -624,6 +624,156 @@ function createPlanet(name, radius, manager) {
 }
 
 /**
+ * 地球昼夜 Shader 顶点着色器
+ * 全部在视空间计算：modelViewMatrix 的平移分量是相机相对坐标，
+ * 避免 1.5e4 量级的世界坐标经 float32 上传 GPU 后在近景产生量化抖动
+ */
+const EARTH_VERT = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vViewNormal;
+  varying vec3 vViewPos;
+
+  void main() {
+    vUv = uv;
+    vViewNormal = normalize(normalMatrix * normal);
+    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+    vViewPos = mvPos.xyz;
+    gl_Position = projectionMatrix * mvPos;
+  }
+`;
+
+/**
+ * 地球昼夜 Shader 片元着色器
+ * 按真实太阳方向（视空间）混合昼半球贴图与夜半球城市灯光，
+ * 晨昏线带暖色散射、海面镜面耀斑、大气瑞利蓝边
+ */
+const EARTH_FRAG = /* glsl */ `
+  uniform sampler2D uDayTexture;
+  uniform sampler2D uNightTexture;
+  uniform sampler2D uSpecularTexture;
+  uniform vec3 uSunDirection; // 视空间单位向量，CPU 每帧更新
+
+  varying vec2 vUv;
+  varying vec3 vViewNormal;
+  varying vec3 vViewPos;
+
+  void main() {
+    vec3 normal = normalize(vViewNormal);
+    vec3 sunDir = normalize(uSunDirection);
+    vec3 viewDir = normalize(-vViewPos);
+
+    float cosSun = dot(normal, sunDir);
+
+    // 昼夜混合因子：晨昏线附近保留柔和过渡带（约 ±7°）
+    float dayFactor = smoothstep(-0.12, 0.12, cosSun);
+
+    vec3 dayColor = texture2D(uDayTexture, vUv).rgb;
+    vec3 nightColor = texture2D(uNightTexture, vUv).rgb;
+
+    // 昼半球：Lambert 漫反射
+    float diffuse = max(cosSun, 0.0);
+    vec3 lit = dayColor * (0.08 + 1.25 * diffuse);
+
+    // 晨昏线暖色调：日出日落带的红橙散射
+    float twilight = pow(1.0 - clamp(abs(cosSun) / 0.22, 0.0, 1.0), 2.0);
+    lit += dayColor * vec3(1.0, 0.42, 0.14) * twilight * 0.55;
+
+    // 夜半球：微弱蓝色底光 + 暖色城市灯光（入夜后逐渐点亮）
+    vec3 lights = nightColor * vec3(1.0, 0.88, 0.62) * 2.4;
+    lights *= smoothstep(0.25, -0.05, cosSun);
+    vec3 night = dayColor * vec3(0.012, 0.018, 0.035) + lights;
+
+    vec3 color = mix(night, lit, dayFactor);
+
+    // 海面镜面反射（太阳耀斑）：仅昼半球有效，防止太阳位于地球正后方时夜面出现假光斑
+    float specMask = texture2D(uSpecularTexture, vUv).r;
+    vec3 halfDir = normalize(sunDir + viewDir);
+    float specular = pow(max(dot(normal, halfDir), 0.0), 42.0) * specMask * diffuse * dayFactor;
+    color += vec3(0.9, 0.85, 0.7) * specular * 0.9;
+
+    // 大气瑞利散射：球体边缘的蓝色辉光，向阳侧更亮
+    float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.2);
+    color += vec3(0.18, 0.35, 0.9) * fresnel * (0.12 + 0.65 * dayFactor);
+
+    gl_FragColor = vec4(color, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+/**
+ * 地球大气辉光着色器（外壳，BackSide + 加色混合）
+ * 边缘菲涅尔辉光，向阳侧亮、背阳侧暗淡，形成真实的晨昏线光晕
+ */
+const ATMOSPHERE_FRAG = /* glsl */ `
+  uniform vec3 uSunDirection; // 视空间单位向量，CPU 每帧更新
+
+  varying vec3 vViewNormal;
+
+  void main() {
+    // 背面渲染：视线与法线越接近垂直（轮廓边缘）辉光越强
+    float rim = pow(1.0 - abs(dot(normalize(vViewNormal), vec3(0.0, 0.0, 1.0))), 4.0);
+    float sunLit = clamp(dot(normalize(vViewNormal), normalize(uSunDirection)) * 1.6 + 0.5, 0.0, 1.0);
+    vec3 color = vec3(0.25, 0.5, 1.0) * rim * (0.08 + 0.9 * sunLit);
+    gl_FragColor = vec4(color, rim);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+/**
+ * 创建地球昼夜材质：昼半球卫星贴图 + 夜半球城市灯光 + 海面高光
+ * 太阳方向由 SolarSystem 每帧写入 uSunDirection，晨昏线随真实时间移动
+ * @param {THREE.LoadingManager} manager - 纹理加载管理器
+ * @returns {THREE.ShaderMaterial} 地球材质
+ */
+function createEarthMaterial(manager) {
+  const loader = new THREE.TextureLoader(manager);
+  const dayTexture = loader.load(`${import.meta.env.BASE_URL}assets/earth.webp`);
+  const nightTexture = loader.load(`${import.meta.env.BASE_URL}assets/earth_lights_2048.png`);
+  const specularTexture = loader.load(`${import.meta.env.BASE_URL}assets/earth_specular_2048.jpg`);
+  dayTexture.colorSpace = THREE.SRGBColorSpace;
+  nightTexture.colorSpace = THREE.SRGBColorSpace;
+  specularTexture.colorSpace = THREE.NoColorSpace;
+  dayTexture.anisotropy = 8;
+  nightTexture.anisotropy = 8;
+
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uDayTexture: { value: dayTexture },
+      uNightTexture: { value: nightTexture },
+      uSpecularTexture: { value: specularTexture },
+      uSunDirection: { value: new THREE.Vector3(1, 0, 0) },
+    },
+    vertexShader: EARTH_VERT,
+    fragmentShader: EARTH_FRAG,
+  });
+}
+
+/**
+ * 创建地球大气辉光外壳（半径略大于地球，附加混合渲染）
+ * @param {number} radius - 外壳半径
+ * @returns {THREE.Mesh} 大气辉光网格
+ */
+function createEarthAtmosphere(radius) {
+  const geometry = new THREE.SphereGeometry(radius, 64, 64);
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uSunDirection: { value: new THREE.Vector3(1, 0, 0) },
+    },
+    vertexShader: EARTH_VERT,
+    fragmentShader: ATMOSPHERE_FRAG,
+    side: THREE.BackSide,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    depthWrite: false,
+  });
+  const atmosphere = new THREE.Mesh(geometry, material);
+  atmosphere.name = "earth-atmosphere";
+  return atmosphere;
+}
+
+/**
  * 创建宇宙背景
  * @param {string} name - 名称
  * @param {number} radius - 半径
@@ -970,6 +1120,8 @@ export {
   createUniverse,
   createRing,
   createGroup,
+  createEarthMaterial,
+  createEarthAtmosphere,
   createLocationMarker,
   calculateEarthRotation,
 

@@ -12,6 +12,8 @@ import {
   createRing,
   createUniverse,
   createGroup,
+  createEarthMaterial,
+  createEarthAtmosphere,
   calculateEarthRotation,
   calculateTrueSubsolarLongitude,
   measureModelSubsolarLongitude,
@@ -232,6 +234,19 @@ export class SolarSystem {
         this.scene.add(group);
       }
     });
+
+    // 地球专属：昼夜 Shader 材质（夜面城市灯光 + 晨昏线）与大气辉光外壳
+    if (this.planets.earth && this.celestialGroups.earth) {
+      // 地球表面与大气层共享同一个太阳方向向量（视空间），每帧只需更新一次
+      this._earthSunDirection = new THREE.Vector3(1, 0, 0);
+      this._earthSunDirWorld = new THREE.Vector3(1, 0, 0);
+      this.planets.earth.material = createEarthMaterial(this.loadingManager);
+      this.planets.earth.material.uniforms.uSunDirection.value = this._earthSunDirection;
+      const atmosphere = createEarthAtmosphere(planetData.earth.radius * 1.03);
+      atmosphere.material.uniforms.uSunDirection.value = this._earthSunDirection;
+      this.celestialGroups.earth.add(atmosphere);
+      this.earthAtmosphere = atmosphere;
+    }
 
     // 搜索列表
     this.searchList = [
@@ -710,6 +725,23 @@ export class SolarSystem {
         this.scene.add(this.pointLight.target);
       }
       this.pointLight.target.position.copy(earthPos);
+    }
+
+    // 同步地球昼夜 Shader 的太阳方向（视空间单位向量）：
+    // 世界空间方向由「原点(太阳) - 地球世界坐标」求得，
+    // 再经当前帧相机姿态变换到视空间。着色器端只用视空间小坐标计算，
+    // 避免 1.5e4 量级世界坐标的 float32 量化误差在近景造成光照抖动
+    if (this._earthSunDirection && this.planets.earth && this.camera) {
+      const earthWorld = new THREE.Vector3();
+      this.planets.earth.getWorldPosition(earthWorld);
+      // 世界空间：太阳指向地球的方向取反即地球指向太阳
+      this._earthSunDirWorld.copy(earthWorld).multiplyScalar(-1).normalize();
+      // 视空间：使用当前帧相机矩阵（渲染器稍后会重算，此处提前刷新保证零延迟）
+      this.camera.updateMatrixWorld();
+      this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
+      this._earthSunDirection
+        .copy(this._earthSunDirWorld)
+        .transformDirection(this.camera.matrixWorldInverse);
     }
   }
 

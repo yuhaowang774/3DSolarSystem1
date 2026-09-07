@@ -15,7 +15,7 @@ import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 const LY = 1e5; // 呈现比例：1 光年的场景单位数
 const GC_DISTANCE_LY = 26490; // 太阳到银心（光年）
 const DISC_RADIUS_LY = 52000; // 银盘呈现半径（光年）
-const STARFIELD_RADIUS = 4e9; // 天球星野半径（无穷远背景）
+
 
 // 可复现随机：保证每次加载的星空一致
 function mulberry32(seed) {
@@ -91,27 +91,6 @@ function pickStarColor(rng) {
   return STAR_COLORS[2].c;
 }
 
-// 天球方向采样：bandProb 概率落在银道带（|银纬| 高斯分布），
-// 银道带内再向银心方向加密 —— 再现真实星空的「银河」
-function randomSkyDirection(rng, frame, bandProb) {
-  let b;
-  let l;
-  if (rng() < bandProb) {
-    b = gaussian(rng) * THREE.MathUtils.degToRad(9);
-    l = rng() < 0.32 ? gaussian(rng) * THREE.MathUtils.degToRad(35) : rng() * Math.PI * 2;
-  } else {
-    b = Math.asin(rng() * 2 - 1);
-    l = rng() * Math.PI * 2;
-  }
-  const cosb = Math.cos(b);
-  return frame.u
-    .clone()
-    .multiplyScalar(cosb * Math.cos(l))
-    .add(frame.v.clone().multiplyScalar(cosb * Math.sin(l)))
-    .add(frame.ngp.clone().multiplyScalar(Math.sin(b)))
-    .normalize();
-}
-
 function buildPointsLayer(positions, colors, size, baseOpacity, attenuate, map) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -128,39 +107,6 @@ function buildPointsLayer(positions, colors, size, baseOpacity, attenuate, map) 
   });
   mat.userData.baseOpacity = baseOpacity;
   return new THREE.Points(geo, mat);
-}
-
-/**
- * 天球星野：近/中/亮三层恒星，按银河带密度分布在天球上
- * sizeAttenuation 关闭 —— 无论相机拉多远都表现为无穷远的背景星海
- * @returns {THREE.Group}
- */
-export function createStarfield() {
-  const rng = mulberry32(20260907);
-  const frame = galacticFrame();
-  const group = new THREE.Group();
-  const layers = [
-    { count: 6200, size: 1.1, bandProb: 0.64 },
-    { count: 1600, size: 1.9, bandProb: 0.55 },
-    { count: 420, size: 3.0, bandProb: 0.45 },
-  ];
-  for (const layer of layers) {
-    const positions = new Float32Array(layer.count * 3);
-    const colors = new Float32Array(layer.count * 3);
-    for (let i = 0; i < layer.count; i++) {
-      const dir = randomSkyDirection(rng, frame, layer.bandProb);
-      positions[i * 3] = dir.x * STARFIELD_RADIUS;
-      positions[i * 3 + 1] = dir.y * STARFIELD_RADIUS;
-      positions[i * 3 + 2] = dir.z * STARFIELD_RADIUS;
-      const c = pickStarColor(rng);
-      const lum = 0.5 + rng() * 0.5;
-      colors[i * 3] = c[0] * lum;
-      colors[i * 3 + 1] = c[1] * lum;
-      colors[i * 3 + 2] = c[2] * lum;
-    }
-    group.add(buildPointsLayer(positions, colors, layer.size, 0.95, false));
-  }
-  return group;
 }
 
 // 银心光晕贴图（canvas 径向渐变，避免依赖外部资源）
@@ -353,10 +299,10 @@ function makeGalaxyPhotoTexture() {
     ctx.fillStyle = "#000";
     ctx.fillRect(348, 238, 150, 48);
     ctx.globalCompositeOperation = 'destination-in';
-    const m = ctx.createRadialGradient(256, 256, 130, 256, 256, 256);
+    const m = ctx.createRadialGradient(256, 256, 190, 256, 256, 256);
     m.addColorStop(0, 'rgba(0,0,0,1)');
-    m.addColorStop(0.68, 'rgba(0,0,0,0.92)');
-    m.addColorStop(1, 'rgba(0,0,0,0)');
+    m.addColorStop(0.88, 'rgba(0,0,0,0.98)');
+    m.addColorStop(1, 'rgba(0,0,0,0.12)');
     ctx.fillStyle = m;
     ctx.fillRect(0, 0, 512, 512);
     ctx.globalCompositeOperation = 'source-over';
@@ -396,7 +342,7 @@ export function createGalaxy() {
 
   // —— 照片盘：程序化棒旋星系纹理贴到银道面 ——
   const discTexture = new THREE.Mesh(
-    new THREE.PlaneGeometry(DISC_RADIUS_LY * LY * 2.12, DISC_RADIUS_LY * LY * 2.12),
+    new THREE.PlaneGeometry(DISC_RADIUS_LY * LY * 2.35, DISC_RADIUS_LY * LY * 2.35),
     new THREE.MeshBasicMaterial({
       map: makeGalaxyPhotoTexture(),
       transparent: true,
@@ -596,9 +542,9 @@ export function createGalaxy() {
       blending: THREE.AdditiveBlending,
     })
   );
-  glow.material.userData.baseOpacity = 0.9;
+  glow.material.userData.baseOpacity = 0.22;
   glow.position.copy(gcWorld);
-  glow.scale.set(9000 * LY, 9000 * LY, 1);
+  glow.scale.set(6000 * LY, 6000 * LY, 1);
   glow.renderOrder = 3;
   materials.push(glow.material);
   group.add(glow);

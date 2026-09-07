@@ -16,7 +16,7 @@ import {
   measureModelSubsolarLongitude,
   performSubsolarCalibration,
 } from "../js/utils.js";
-import { createStarfield, createGalaxy } from "./cosmos.js";
+import { createGalaxy } from "./cosmos.js";
 import { planetData, cnNames } from "../js/dats.js";
 import {
   state,
@@ -178,8 +178,6 @@ export class SolarSystem {
    * - 银河系：粒子盘 + 照片盘纹理 + 银心，缩放拉远时分层渐显
    */
   _initCosmos() {
-    this.starfield = createStarfield();
-    this.scene.add(this.starfield);
     this.galaxy = createGalaxy();
     this.galaxy.group.visible = false;
     this.scene.add(this.galaxy.group);
@@ -191,7 +189,7 @@ export class SolarSystem {
   /**
    * 按相机距离驱动分层淡入（节奏对齐 NASA Eyes）：
    * 邻域恒星(3 ly 起) → 粒子盘(30~800 ly) → 太阳亮点(3000 ly 起)
-   * → 照片盘纹理(2000~15000 ly) → 星野压暗(银河全貌时背景近黑)
+   * → 照片盘纹理(2000~15000 ly)（完整银河全貌）
    */
   _updateCosmos() {
     const d = this.camera.position.length();
@@ -224,13 +222,6 @@ export class SolarSystem {
     const sunT = THREE.MathUtils.smoothstep(d, 3e7, 6e8);
     this.galaxy.sunDot.material.opacity = sunT;
     this.galaxy.sunDot.visible = sunT > 0.02;
-    // 银河全貌时背景星野压至近黑（NASA Eyes：深空视角背景几乎无星）
-    const sfFade = 1 - 0.9 * THREE.MathUtils.smoothstep(d, 1e9, 3.5e9);
-    this.starfield.children.forEach((p) => {
-      if (p.material) {
-        p.material.opacity = p.material.userData.baseOpacity * sfFade;
-      }
-    });
   }
 
   _initLights() {

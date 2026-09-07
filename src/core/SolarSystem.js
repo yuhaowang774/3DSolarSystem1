@@ -9,7 +9,6 @@ import {
   createSprite,
   createSun,
   createPlanet,
-  createUniverse,
   createRing,
   createGroup,
   calculateEarthRotation,
@@ -17,6 +16,7 @@ import {
   measureModelSubsolarLongitude,
   performSubsolarCalibration,
 } from "../js/utils.js";
+import { createStarfield, createGalaxy } from "./cosmos.js";
 import { planetData, cnNames } from "../js/dats.js";
 import {
   state,
@@ -121,7 +121,8 @@ export class SolarSystem {
 
     this.scene = new THREE.Scene();
 
-    this.camera = new THREE.PerspectiveCamera(90, w / h, 0.001, 1e10);
+    // 远裁剪面覆盖银河系呈现尺度（盘半径 ~5e9 + 相机距离）
+    this.camera = new THREE.PerspectiveCamera(90, w / h, 0.001, 2e10);
     this.camera.position.set(139.2 * 100, 69.6 * 100, 139.2 * 100);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -152,7 +153,7 @@ export class SolarSystem {
     this.controls.zoomSpeed = 5.0;
     this.controls.smoothZoom = true;
     this.controls.minDistance = 0.001;
-    this.controls.maxDistance = 1e9;
+    this.controls.maxDistance = 1.2e10;
     this.controls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
       MIDDLE: THREE.MOUSE.DOLLY,
@@ -168,6 +169,48 @@ export class SolarSystem {
     this.raycaster = new THREE.Raycaster();
 
     window.addEventListener("resize", this._onResize);
+  }
+
+  /**
+   * 初始化宇宙呈现层（替代贴图天球）：
+   * - 星野：无穷远背景，恒星按银河带密度分布
+   * - 银河系：邻域恒星 + 银盘 + 银心，缩放拉远时渐显
+   */
+  _initCosmos() {
+    this.starfield = createStarfield();
+    this.scene.add(this.starfield);
+    this.galaxy = createGalaxy();
+    this.galaxy.group.visible = false;
+    this.scene.add(this.galaxy.group);
+  }
+
+  /** 按相机距离驱动银河层淡入与远景太阳标记 */
+  _updateCosmos() {
+    const d = this.camera.position.length();
+    // 太阳光晕在行星尺度恒定约 100px，拉远后淡出、由远景太阳亮点接管
+    const haloFade = 1 - THREE.MathUtils.smoothstep(d, 4e6, 4e7);
+    if (this.sunHalo) {
+      this.sunHalo.material.opacity = haloFade;
+      this.sunHalo.visible = d > 1000 && haloFade > 0.02;
+    }
+    const t = THREE.MathUtils.smoothstep(d, 3e6, 8e7);
+    this.galaxy.group.visible = t > 0.012;
+    if (this.galaxy.group.visible) {
+      for (const m of this.galaxy.materials) {
+        m.opacity = m.userData.baseOpacity * t;
+      }
+    }
+    // 极远处太阳系缩成一个亮点
+    const sunT = THREE.MathUtils.smoothstep(d, 3e7, 6e8);
+    this.galaxy.sunDot.material.opacity = sunT;
+    this.galaxy.sunDot.visible = sunT > 0.02;
+    // 极远处背景星野渐淡：恒星视觉上并入银河盘结构
+    const sfFade = 1 - 0.65 * THREE.MathUtils.smoothstep(d, 1.5e9, 5e9);
+    this.starfield.children.forEach((p) => {
+      if (p.material) {
+        p.material.opacity = p.material.userData.baseOpacity * sfFade;
+      }
+    });
   }
 
   _initLights() {
@@ -188,7 +231,7 @@ export class SolarSystem {
       "jupiter", "saturn", "uranus", "neptune", "moon",
     ];
 
-    this.universe = createUniverse(planetData.universe.name, planetData.universe.radius, this.loadingManager);
+    this._initCosmos();
     this.sun = createSun(planetData.sun.name, planetData.sun.radius, this.loadingManager);
 
     this.sunHalo = createSprite("sun-glow", this.loadingManager);
@@ -197,7 +240,6 @@ export class SolarSystem {
     this.sun.add(this.sunHalo);
     this.sunRadius = sunRadius;
 
-    this.scene.add(this.universe);
     this.scene.add(this.sun);
 
     this.orbitGroup = new THREE.Group();
@@ -564,7 +606,7 @@ export class SolarSystem {
     const planetRadius = planetData[name]?.radius || 1;
     const safety = planetRadius > 10000 ? 1.5 : 1.2;
     const minDistance = planetRadius * safety;
-    const maxDistance = 1e9;
+    const maxDistance = 1.2e10;
     const sensitivity = 0.02;
     const zoomDelta = event.deltaY < 0 ? -sensitivity : sensitivity;
     let newDistance = currentDistance * (1 + zoomDelta);
@@ -749,12 +791,32 @@ export class SolarSystem {
   }
 
   _updateVisibility() {
-    Object.keys(this.celestialGroups).forEach((name) => {
+    const names = Object.keys(this.celestialGroups);
+    // 先收集相机到各天体的距离，并计算「贴近度」：
+    // 相机距任一天体表面越近，值越小（以天体半径 × 300 为参照）
+    const distances = {};
+    let proximity = Infinity;
+    names.forEach((name) => {
       const group = this.celestialGroups[name];
       const data = planetData[name];
       if (!group || !data) return;
       group.getWorldPosition(this._tmpVec);
       const distance = this.camera.position.distanceTo(this._tmpVec);
+      distances[name] = distance;
+      proximity = Math.min(
+        proximity,
+        distance / Math.max(1e-9, data.radius * 300)
+      );
+    });
+    // 贴近任意天体时全局隐去所有轨迹线，保持近景视野干净（NASA Eyes 风格）
+    const gx = Math.max(0, Math.min(1, (proximity - 0.25) / 0.75));
+    const globalFade = gx * gx * (3 - 2 * gx);
+
+    names.forEach((name) => {
+      const group = this.celestialGroups[name];
+      const data = planetData[name];
+      if (!group || !data) return;
+      const distance = distances[name];
       const sizeRatio = data.radius / planetData.earth.radius;
       const maxVisible = (data.a ? data.a[0] * 200000 : 10000) * sizeRatio;
       const isSelectedOrSat =
@@ -764,7 +826,23 @@ export class SolarSystem {
       group.children.forEach((child) => {
         if (child.isMesh || child.isGroup) child.visible = shouldBeVisible;
       });
-      if (this.orbits[name]) this.orbits[name].visible = shouldBeVisible;
+      // 轨迹线透明度 = 全局贴近淡出 × 逐天体距离淡出
+      const orbit = this.orbits[name];
+      if (orbit && orbit.material) {
+        const fadeStart = data.radius * 300;
+        const fadeEnd = data.radius * 80;
+        let factor = 1;
+        if (distance < fadeStart) {
+          const t = Math.max(
+            0,
+            Math.min(1, (distance - fadeEnd) / (fadeStart - fadeEnd))
+          );
+          factor = t * t * (3 - 2 * t); // smoothstep
+        }
+        factor *= globalFade;
+        orbit.visible = shouldBeVisible && factor > 0.015;
+        orbit.material.opacity = 0.5 * factor;
+      }
     });
   }
 
@@ -797,6 +875,7 @@ export class SolarSystem {
     this._updatePlanets();
     this._updateSpriteSize(this.sunHalo);
     this._updateVisibility();
+    this._updateCosmos();
 
     // 过渡动画期间由 _selectAndFocus 独占相机控制，此处让行，避免两者互相覆盖
     // 跟随 cameraTarget（而非 selectedCelestial）：关闭信息面板不会中断跟随

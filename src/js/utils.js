@@ -624,27 +624,6 @@ function createPlanet(name, radius, manager) {
 }
 
 /**
- * 创建宇宙背景
- * @param {string} name - 名称
- * @param {number} radius - 半径
- * @returns {THREE.Mesh} 宇宙背景网格对象
- */
-function createUniverse(name, radius, manager) {
-  const textureLoader = new THREE.TextureLoader(manager);
-  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.webp`);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const material = new THREE.MeshBasicMaterial({
-    map: texture,
-    side: THREE.BackSide,
-  });
-
-  const geometry = new THREE.SphereGeometry(radius, 32, 32);
-  const universe = new THREE.Mesh(geometry, material);
-
-  return universe;
-}
-
-/**
  * 创建行星环
  * @param {string} name - 名称
  * @param {number} innerRadius - 内环半径
@@ -965,7 +944,6 @@ export {
   createSprite,
   createSun,
   createPlanet,
-  createUniverse,
   createRing,
   createGroup,
   createLocationMarker,

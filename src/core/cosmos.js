@@ -53,6 +53,31 @@ const STAR_COLORS = [
 ];
 const COLOR_TOTAL = STAR_COLORS.reduce((s, x) => s + x.w, 0);
 
+// 真实太阳邻域恒星（20 秒差距内，可靠观测数据）
+// [RA(小时), Dec(度), 距离(光年), 色型索引(0蓝白~5红), 视星等]
+const NEARBY_STARS = [
+  [14.51, -62.68, 4.25, 5, -0.27], // 半人马座α系统
+  [10.11, -36.72, 8.6, 0, -1.46], // 天狼星
+  [5.38, -1.19, 10.34, 4, -0.74], // 老人星
+  [17.97, 4.69, 5.96, 4, -0.05], // 大角星
+  [13.42, -11.16, 36.7, 0, -0.67], // 织女星
+  [18.99, 38.78, 25.0, 0, 0.03], // 五车二
+  [7.66, 28.03, 16.7, 0, 0.34], // 五车五
+  [1.64, -57.4, 11.4, 3, 0.46], // 南门二β
+  [16.81, -34.3, 16.1, 4, 0.96], // 心宿二
+  [18.15, -22.96, 6.0, 5, 5.9], // 巴纳德星
+  [10.75, -5.02, 6.1, 5, 5.95], // 沃尔夫359
+  [22.46, -15.28, 10.9, 4, 3.49], // 印第安座α
+  [1.06, -16.71, 8.53, 5, 3.73], // 鲸鱼座τ
+  [4.44, -30.96, 11.9, 4, 4.83], // 波江座ε
+  [8.05, -8.6, 19.7, 3, 2.58], // 长蛇座ε
+  [14.05, 21.47, 20.4, 3, 2.83], // 牧夫座η
+  [20.13, 36.9, 20.5, 3, 3.17], // 天鹅座δ
+  [16.0, -8.32, 20.8, 3, 3.02], // 天秤座β
+  [9.13, 41.57, 21.2, 3, 3.14], // 大熊座θ
+  [4.95, 6.96, 22.0, 3, 3.31], // 猎户座τ
+];
+
 function pickStarColor(rng) {
   let r = rng() * COLOR_TOTAL;
   for (const item of STAR_COLORS) {
@@ -82,7 +107,7 @@ function randomSkyDirection(rng, frame, bandProb) {
     .normalize();
 }
 
-function buildPointsLayer(positions, colors, size, baseOpacity, attenuate) {
+function buildPointsLayer(positions, colors, size, baseOpacity, attenuate, map) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
@@ -93,6 +118,7 @@ function buildPointsLayer(positions, colors, size, baseOpacity, attenuate) {
     transparent: true,
     opacity: baseOpacity,
     depthWrite: false,
+    map, // 圆形柔点贴图：无贴图的 Points 会渲染成方块
     blending: THREE.AdditiveBlending,
   });
   mat.userData.baseOpacity = baseOpacity;
@@ -142,7 +168,15 @@ function makeGlowTexture() {
   g.addColorStop(0.22, "rgba(255,234,196,0.55)");
   g.addColorStop(0.55, "rgba(255,218,168,0.12)");
   g.addColorStop(1, "rgba(255,218,168,0)");
-  ctx.fillStyle = g;
+  g.addColorStop(0.35,'rgba(255,236,200,0.35)');g.addColorStop(0.7,'rgba(255,225,180,0.06)');  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  // 圆形 alpha 遮罩：杜绝方形渐变边界
+  ctx.globalCompositeOperation = "destination-in";
+  const m = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  m.addColorStop(0, "rgba(0,0,0,1)");
+  m.addColorStop(0.7, "rgba(0,0,0,1)");
+  m.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = m;
   ctx.fillRect(0, 0, 128, 128);
   return new THREE.CanvasTexture(canvas);
 }
@@ -173,7 +207,7 @@ export function createGalaxy() {
   // —— 银盘：四条对数螺旋臂 + 臂间散布 ——
   const ARMS = 4;
   const PITCH = Math.tan(THREE.MathUtils.degToRad(13));
-  const DISC_COUNT = 36000;
+  const DISC_COUNT = 46000;
   const RIDGE_COUNT = 9000; // 臂脊亮星：勾勒旋臂骨架
   const discPos = new Float32Array(DISC_COUNT * 3);
   const discCol = new Float32Array(DISC_COUNT * 3);
@@ -210,7 +244,7 @@ export function createGalaxy() {
     discCol[i * 3 + 1] = c[1] * lum;
     discCol[i * 3 + 2] = c[2] * lum;
   }
-  const disc = buildPointsLayer(discPos, discCol, 1.4, 0.85, false);
+  const disc = buildPointsLayer(discPos, discCol, 2.0, 0.85, false, makeGlowTexture());
   materials.push(disc.material);
   group.add(disc);
 
@@ -235,51 +269,158 @@ export function createGalaxy() {
     ridgeCol[i * 3 + 1] = c[1] * lum;
     ridgeCol[i * 3 + 2] = c[2] * lum;
   }
-  const ridge = buildPointsLayer(ridgePos, ridgeCol, 2.6, 0.95, false);
+  const ridge = buildPointsLayer(ridgePos, ridgeCol, 3.2, 0.95, false, makeGlowTexture());
   materials.push(ridge.material);
   group.add(ridge);
+
+  // —— 旋臂辉光：大尺寸低透明度弥散光，形成「照片感」臂区辉光 ——
+  const GLOW_COUNT = 9000;
+  const glowPos = new Float32Array(GLOW_COUNT * 3);
+  const glowCol = new Float32Array(GLOW_COUNT * 3);
+  for (let i = 0; i < GLOW_COUNT; i++) {
+    const r = 4500 + (DISC_RADIUS_LY - 4500) * Math.pow(rng(), 0.75);
+    const arm = Math.floor(rng() * ARMS);
+    const theta =
+      Math.log(r / 1200) / PITCH +
+      (arm * 2 * Math.PI) / ARMS +
+      gaussian(rng) * (0.06 + 50 / r);
+    const z = gaussian(rng) * (80 + r * 0.012);
+    toWorld(r * Math.cos(theta), r * Math.sin(theta), z, tmp);
+    glowPos[i * 3] = tmp.x;
+    glowPos[i * 3 + 1] = tmp.y;
+    glowPos[i * 3 + 2] = tmp.z;
+    // 粉红星形成区（15%）与蓝白辉光（85%）交替点缀
+    const nebula = rng() < 0.15;
+    const lum = 0.1 + rng() * 0.14;
+    const c = nebula ? [1.0, 0.62, 0.72] : [0.74, 0.84, 1.0];
+    glowCol[i * 3] = c[0] * lum;
+    glowCol[i * 3 + 1] = c[1] * lum;
+    glowCol[i * 3 + 2] = c[2] * lum;
+  }
+  const armGlow = buildPointsLayer(glowPos, glowCol, 24, 0.6, false, makeGlowTexture());
+  materials.push(armGlow.material);
+  group.add(armGlow);
+
+  // —— 暗尘埃带：旋臂内缘的深色纹理，普通混合压出「照片」层次 ——
+  const DUST_COUNT = 5200;
+  const dustPos = new Float32Array(DUST_COUNT * 3);
+  const dustCol = new Float32Array(DUST_COUNT * 3);
+  for (let i = 0; i < DUST_COUNT; i++) {
+    const r = 5200 + (DISC_RADIUS_LY - 5200) * Math.pow(rng(), 0.78);
+    const arm = Math.floor(rng() * ARMS);
+    // 尘埃沿臂内缘偏移（θ 略小）
+    const theta =
+      Math.log(r / 1200) / PITCH +
+      (arm * 2 * Math.PI) / ARMS -
+      0.06 -
+      gaussian(rng) * (0.05 + 40 / r);
+    const z = gaussian(rng) * (55 + r * 0.008);
+    toWorld(r * Math.cos(theta), r * Math.sin(theta), z, tmp);
+    dustPos[i * 3] = tmp.x;
+    dustPos[i * 3 + 1] = tmp.y;
+    dustPos[i * 3 + 2] = tmp.z;
+    const lum = 0.16 + rng() * 0.1;
+    dustCol[i * 3] = 0.22 * lum;
+    dustCol[i * 3 + 1] = 0.17 * lum;
+    dustCol[i * 3 + 2] = 0.14 * lum;
+  }
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+  dustGeo.setAttribute("color", new THREE.BufferAttribute(dustCol, 3));
+  const dustMat = new THREE.PointsMaterial({
+    size: 16,
+    sizeAttenuation: false,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.5,
+    depthWrite: false,
+    map: makeGlowTexture(),
+    blending: THREE.NormalBlending,
+  });
+  dustMat.userData.baseOpacity = 0.5;
+  dustMat.userData.dust = true; // 尘埃须渲染在辉光粒子之后压暗
+  materials.push(dustMat);
+  const dust = new THREE.Points(dustGeo, dustMat);
+  dust.renderOrder = 2;
+  group.add(dust);
+  armGlow.renderOrder = 1;
+  disc.renderOrder = 1;
+  ridge.renderOrder = 1;
 
   // —— 核球：中央 3D 高斯分布，暖黄色 ——
   const BULGE_COUNT = 5200;
   const bulgePos = new Float32Array(BULGE_COUNT * 3);
   const bulgeCol = new Float32Array(BULGE_COUNT * 3);
   for (let i = 0; i < BULGE_COUNT; i++) {
-    const x = gaussian(rng) * 2400; // 盘面内
-    const y = gaussian(rng) * 2400; // 盘面内
-    const z = gaussian(rng) * 1500; // 垂直盘面（扁）
+    const x = gaussian(rng) * 3400; // 棒状：沿银心-太阳连线拉长
+    const y = gaussian(rng) * 1400;
+    const z = gaussian(rng) * 1300; // 垂直盘面（扁）
     toWorld(x, y, z, tmp);
     bulgePos[i * 3] = tmp.x;
     bulgePos[i * 3 + 1] = tmp.y;
     bulgePos[i * 3 + 2] = tmp.z;
-    const lum = 0.5 + rng() * 0.5;
+    const lum = 0.55 + rng() * 0.55;
     bulgeCol[i * 3] = 1.0 * lum;
-    bulgeCol[i * 3 + 1] = 0.88 * lum;
-    bulgeCol[i * 3 + 2] = 0.66 * lum;
+    bulgeCol[i * 3 + 1] = 0.9 * lum;
+    bulgeCol[i * 3 + 2] = 0.7 * lum;
   }
   const bulge = buildPointsLayer(bulgePos, bulgeCol, 1.9, 0.9, false);
+  bulge.renderOrder = 1;
   materials.push(bulge.material);
   group.add(bulge);
 
   // —— 太阳邻域恒星：缩放时的「星际散开」主角 ——
-  const NEIGHBOR_COUNT = 1500;
-  const nbPos = new Float32Array(NEIGHBOR_COUNT * 3);
-  const nbCol = new Float32Array(NEIGHBOR_COUNT * 3);
-  for (let i = 0; i < NEIGHBOR_COUNT; i++) {
-    // 指数盘：银道面聚集，尺度 ~500 光年
-    const rr = -Math.log(1 - rng()) * 500;
-    const theta = rng() * Math.PI * 2;
-    const z = gaussian(rng) * 240;
-    toWorld(rr * Math.cos(theta), rr * Math.sin(theta), z, tmp);
+  // 真实双星/暗伴星（视位置小幅偏移）
+  const COMPANIONS = [
+    [14.51, -62.68, 4.25, 5, 0.5],
+    [10.11, -36.72, 8.6, 1, 0.9],
+    [18.15, -22.96, 6.0, 4, 0.6],
+    [1.06, -16.71, 8.53, 4, 0.7],
+    [7.66, 28.03, 16.7, 4, 0.8],
+    [16.81, -34.3, 16.1, 3, 0.9],
+  ];
+  const NB = NEARBY_STARS.length + COMPANIONS.length;
+  const nbPos = new Float32Array(NB * 3);
+  const nbCol = new Float32Array(NB * 3);
+  // 赤道坐标 → 场景方向（Y 轴为天极）
+  const decToDir = (raH, decDeg, dist, out) => {
+    const ra = (raH / 24) * Math.PI * 2;
+    const dec = (decDeg * Math.PI) / 180;
+    out.set(
+      dist * Math.cos(dec) * Math.cos(ra),
+      dist * Math.sin(dec),
+      dist * Math.cos(dec) * Math.sin(ra)
+    );
+    return out;
+  };
+  NEARBY_STARS.forEach((st, i) => {
+    const [ra, dec, distLy, type, mag] = st;
+    decToDir(ra, dec, distLy * LY, tmp);
     nbPos[i * 3] = tmp.x;
     nbPos[i * 3 + 1] = tmp.y;
     nbPos[i * 3 + 2] = tmp.z;
-    const c = pickStarColor(rng);
-    const lum = 0.55 + rng() * 0.45;
+    const c = STAR_COLORS[type].c;
+    const lum = Math.max(0.35, Math.min(1.3, 1.05 - mag * 0.28)) * 1.4;
     nbCol[i * 3] = c[0] * lum;
     nbCol[i * 3 + 1] = c[1] * lum;
     nbCol[i * 3 + 2] = c[2] * lum;
-  }
-  const neighbors = buildPointsLayer(nbPos, nbCol, 4e5, 0.95, true);
+  });
+  COMPANIONS.forEach((st, j) => {
+    const i = NEARBY_STARS.length + j;
+    const [ra, dec, distLy, type, mag] = st;
+    const off = 0.004 * (j + 1);
+    decToDir(ra + off, dec + off, distLy * LY, tmp);
+    nbPos[i * 3] = tmp.x;
+    nbPos[i * 3 + 1] = tmp.y;
+    nbPos[i * 3 + 2] = tmp.z;
+    const c = STAR_COLORS[type].c;
+    const lum = Math.max(0.3, 0.9 - mag * 0.25);
+    nbCol[i * 3] = c[0] * lum;
+    nbCol[i * 3 + 1] = c[1] * lum;
+    nbCol[i * 3 + 2] = c[2] * lum;
+  });
+  const neighbors = buildPointsLayer(nbPos, nbCol, 4e5, 0.95, true, makeGlowTexture());
+  neighbors.renderOrder = 1;
   materials.push(neighbors.material);
   group.add(neighbors);
 
@@ -296,7 +437,8 @@ export function createGalaxy() {
   );
   glow.material.userData.baseOpacity = 0.9;
   glow.position.copy(gcWorld);
-  glow.scale.set(5200 * LY, 5200 * LY, 1);
+  glow.scale.set(9000 * LY, 9000 * LY, 1);
+  glow.renderOrder = 3;
   materials.push(glow.material);
   group.add(glow);
 
@@ -313,6 +455,7 @@ export function createGalaxy() {
     })
   );
   sunDot.scale.set(0.02, 0.02, 1);
+  sunDot.renderOrder = 3;
   group.add(sunDot);
 
   return { group, materials, sunDot };

@@ -330,6 +330,48 @@ function makeGalaxyTexture() {
 }
 
 /**
+ * 真实银河系照片纹理：取自 NASA Eyes 最小缩放时的呈现（NASA/JPL-Caltech 概念图）
+ * 从截帧中裁出银河主体，并抹掉帧内残留的 UI 标记；
+ * 加色混合下黑色即透明。加载失败时回退到程序化纹理
+ * @returns {THREE.CanvasTexture}
+ */
+function makeGalaxyPhotoTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, 512, 512);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const img = new Image();
+  img.onload = () => {
+    // 截帧中银河主体区域 [165,125] ~ [665,615]
+    ctx.drawImage(img, 165, 125, 500, 490, 0, 0, 512, 512);
+    // 抹掉帧内残留的 SUN 标记与光点（加色混合下黑色不可见）
+    ctx.fillStyle = "#000";
+    ctx.fillRect(348, 238, 150, 48);
+    ctx.globalCompositeOperation = 'destination-in';
+    const m = ctx.createRadialGradient(256, 256, 130, 256, 256, 256);
+    m.addColorStop(0, 'rgba(0,0,0,1)');
+    m.addColorStop(0.68, 'rgba(0,0,0,0.92)');
+    m.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = m;
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.globalCompositeOperation = 'source-over';
+    tex.needsUpdate = true;
+  };
+  img.onerror = () => {
+    // 回退：程序化棒旋纹理
+    ctx.drawImage(makeGalaxyTexture().image, 0, 0);
+    tex.needsUpdate = true;
+  };
+  img.src = `${import.meta.env.BASE_URL}assets/galaxy-frame.png`;
+  return tex;
+}
+
+/**
  * 银河系呈现层（分层结构，由远及近）：
  * - 照片盘纹理平面：拉远后银河全貌的主体（连续雾状旋臂，NASA Eyes 观感）
  * - 邻域恒星：太阳周围 ~1200 光年的三维分布（独立于本 group，由场景单独管理）
@@ -356,7 +398,7 @@ export function createGalaxy() {
   const discTexture = new THREE.Mesh(
     new THREE.PlaneGeometry(DISC_RADIUS_LY * LY * 2.12, DISC_RADIUS_LY * LY * 2.12),
     new THREE.MeshBasicMaterial({
-      map: makeGalaxyTexture(),
+      map: makeGalaxyPhotoTexture(),
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,

@@ -174,7 +174,8 @@ export class SolarSystem {
   /**
    * 初始化宇宙呈现层（替代贴图天球）：
    * - 星野：无穷远背景，恒星按银河带密度分布
-   * - 银河系：邻域恒星 + 银盘 + 银心，缩放拉远时渐显
+   * - 邻域真实恒星：独立于银河层，离开太阳系（约 3 光年）即渐显
+   * - 银河系：粒子盘 + 照片盘纹理 + 银心，缩放拉远时分层渐显
    */
   _initCosmos() {
     this.starfield = createStarfield();
@@ -182,9 +183,16 @@ export class SolarSystem {
     this.galaxy = createGalaxy();
     this.galaxy.group.visible = false;
     this.scene.add(this.galaxy.group);
+    this.galaxyNeighbors = this.galaxy.neighbors;
+    this.galaxyNeighbors.visible = false;
+    this.scene.add(this.galaxyNeighbors);
   }
 
-  /** 按相机距离驱动银河层淡入与远景太阳标记 */
+  /**
+   * 按相机距离驱动分层淡入（节奏对齐 NASA Eyes）：
+   * 邻域恒星(3 ly 起) → 粒子盘(30~800 ly) → 太阳亮点(3000 ly 起)
+   * → 照片盘纹理(2000~15000 ly) → 星野压暗(银河全貌时背景近黑)
+   */
   _updateCosmos() {
     const d = this.camera.position.length();
     // 太阳光晕在行星尺度恒定约 100px，拉远后淡出、由远景太阳亮点接管
@@ -193,19 +201,31 @@ export class SolarSystem {
       this.sunHalo.material.opacity = haloFade;
       this.sunHalo.visible = d > 1000 && haloFade > 0.02;
     }
+    // 真实邻域恒星：就在太阳周围 4~25 ly，离开太阳系后立即浮现
+    const nbT = THREE.MathUtils.smoothstep(d, 3e5, 2.5e6);
+    this.galaxyNeighbors.visible = nbT > 0.01;
+    if (this.galaxyNeighbors.visible) {
+      this.galaxyNeighbors.material.opacity =
+        this.galaxyNeighbors.material.userData.baseOpacity * nbT;
+    }
+    // 银河粒子层：星际空间中的散开星点与盘内视角
     const t = THREE.MathUtils.smoothstep(d, 3e6, 8e7);
-    this.galaxy.group.visible = t > 0.012;
+    // 照片盘纹理：拉远后银河全貌的主体（连续雾状旋臂）
+    const tf = THREE.MathUtils.smoothstep(d, 2e8, 1.5e9);
+    this.galaxy.group.visible = t > 0.012 || tf > 0.012;
     if (this.galaxy.group.visible) {
       for (const m of this.galaxy.materials) {
         m.opacity = m.userData.baseOpacity * t;
       }
+      this.galaxy.discTexture.material.opacity =
+        this.galaxy.discTexture.material.userData.baseOpacity * tf;
     }
-    // 极远处太阳系缩成一个亮点
+    // 极远处太阳系缩成一个亮点（含 SUN 标签）
     const sunT = THREE.MathUtils.smoothstep(d, 3e7, 6e8);
     this.galaxy.sunDot.material.opacity = sunT;
     this.galaxy.sunDot.visible = sunT > 0.02;
-    // 极远处背景星野渐淡：恒星视觉上并入银河盘结构
-    const sfFade = 1 - 0.65 * THREE.MathUtils.smoothstep(d, 1.5e9, 5e9);
+    // 银河全貌时背景星野压至近黑（NASA Eyes：深空视角背景几乎无星）
+    const sfFade = 1 - 0.9 * THREE.MathUtils.smoothstep(d, 1e9, 3.5e9);
     this.starfield.children.forEach((p) => {
       if (p.material) {
         p.material.opacity = p.material.userData.baseOpacity * sfFade;

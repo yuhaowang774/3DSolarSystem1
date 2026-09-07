@@ -1,11 +1,16 @@
 // 程序化宇宙呈现层（NASA Eyes 风格）
-// - 天球星野：替代贴图天球，恒星按银河带密度分布，表现为无穷远背景
-// - 银河系呈现层：太阳邻域恒星（缩放时「散开」）+ 银盘旋臂 + 核球 + 银心光晕
+// - 天球星野：恒星按银河带密度分布，表现为无穷远背景
+// - 银河系呈现层：
+//   · 远景「照片盘」：程序化逐像素生成的棒旋星系纹理平面（连续雾状旋臂 /
+//     暖金棒状核球 / 沿臂暗尘埃带 / 粉红星形成区），拉远时构成银河全貌主体
+//   · 粒子层：真实太阳邻域恒星（缩放时「散开」）+ 盘恒星 + 臂脊亮星 +
+//     旋臂辉光 + 核球，提供近中景的立体感与离散星点
 //
 // 尺度约定：行星/轨道沿用真实比例（1 单位 = 1 万公里）；
 // 恒星与银河系采用压缩呈现比例 1 光年 = 1e5 单位，
 // 使「行星 → 星际空间 → 银河系圆盘」能在一个连续缩放区间内呈现。
 import * as THREE from "three";
+import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
 const LY = 1e5; // 呈现比例：1 光年的场景单位数
 const GC_DISTANCE_LY = 26490; // 太阳到银心（光年）
@@ -168,7 +173,7 @@ function makeGlowTexture() {
   g.addColorStop(0.22, "rgba(255,234,196,0.55)");
   g.addColorStop(0.55, "rgba(255,218,168,0.12)");
   g.addColorStop(1, "rgba(255,218,168,0)");
-  g.addColorStop(0.35,'rgba(255,236,200,0.35)');g.addColorStop(0.7,'rgba(255,225,180,0.06)');  ctx.fillStyle = g;
+  ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
   // 圆形 alpha 遮罩：杜绝方形渐变边界
   ctx.globalCompositeOperation = "destination-in";
@@ -181,13 +186,156 @@ function makeGlowTexture() {
   return new THREE.CanvasTexture(canvas);
 }
 
+// —— 银河「照片盘」纹理：程序化逐像素渲染棒旋星系（NASA Eyes 观感） ——
+// 对数螺旋公式与粒子层完全一致，保证纹理旋臂与盘粒子臂位置吻合
+const ARM_PITCH = Math.tan(THREE.MathUtils.degToRad(13));
+const ARM_COUNT = 4;
+
+function angleDist(a, b) {
+  let d = a - b;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return Math.abs(d);
+}
+
+function smooth01(x) {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+}
+
 /**
- * 银河系呈现层
- * - 邻域恒星：太阳周围 ~1200 光年的三维分布，sizeAttenuation 开启，
- *   缩小时产生「恒星在星际空间中散开」的透视效果
- * - 银盘：四条对数螺旋臂 + 盘面散布 + 中央核球，太阳系位于盘内原点
- * - 银心光晕 + 远景太阳标记（缩到极远时太阳系保持一个可见亮点）
- * @returns {{group: THREE.Group, materials: THREE.Material[], sunDot: THREE.Sprite}}
+ * 生成银河系俯视纹理：连续雾状旋臂 + 暖金棒状核球 + 沿臂暗尘埃带 + 粉红星形成区
+ * 加性混合下黑色即透明，alpha 通道无意义
+ * @returns {THREE.CanvasTexture}
+ */
+function makeGalaxyTexture() {
+  const SIZE = 1024;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = SIZE;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(SIZE, SIZE);
+  const out = img.data;
+
+  // 平铺值噪声表 + 双线性采样（分形叠加出絮状结构，避免「数学塑料感」）
+  const N = 256;
+  const noiseTable = new Float32Array(N * N);
+  const noiseRng = mulberry32(424242);
+  for (let i = 0; i < N * N; i++) noiseTable[i] = noiseRng();
+  const sampleNoise = (x, y) => {
+    const xi = Math.floor(x);
+    const yi = Math.floor(y);
+    const xf = x - xi;
+    const yf = y - yi;
+    const x0 = ((xi % N) + N) % N;
+    const y0 = ((yi % N) + N) % N;
+    const x1 = (x0 + 1) % N;
+    const y1 = (y0 + 1) % N;
+    const a = noiseTable[y0 * N + x0];
+    const b = noiseTable[y0 * N + x1];
+    const c = noiseTable[y1 * N + x0];
+    const e = noiseTable[y1 * N + x1];
+    const u = xf * xf * (3 - 2 * xf);
+    const v = yf * yf * (3 - 2 * yf);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + e) * u * v;
+  };
+  const fbm = (x, y) => 0.625 * sampleNoise(x, y) + 0.375 * sampleNoise(x * 2.13 + 11, y * 2.13 + 7);
+
+  for (let py = 0; py < SIZE; py++) {
+    // canvas y 向下，翻转为数学坐标（与平面局部 +Y 对齐）
+    const y = (1 - py / SIZE) * 2 - 1;
+    for (let px = 0; px < SIZE; px++) {
+      const x = (px / SIZE) * 2 - 1;
+      const r = Math.hypot(x, y);
+      const idx = (py * SIZE + px) * 4;
+      if (r >= 1.02) {
+        out[idx + 3] = 255;
+        continue;
+      }
+      const theta = Math.atan2(y, x);
+
+      // 噪声调制：盘面絮状亮暗起伏
+      const clumpy = 0.6 + 0.85 * fbm(px * 0.02, py * 0.02);
+
+      // —— 结构分量 ——
+      // 指数盘基底
+      const diskI = Math.exp(-r * 4.2) * 0.3 * clumpy;
+      // 棒状核球（沿 +X 拉长的暖金高斯）+ 致密核心
+      const barI = Math.exp(-(x * x / 0.048 + y * y / 0.0056)) * 0.8;
+      const coreI = Math.exp(-(r * r) / 0.0012) * 1.7;
+      // 对数螺旋臂（与粒子层同公式，臂宽随半径展宽）：
+      // 主臂 2 条 + 次臂 2 条（0.55 权重），旋臂自棒端伸出 —— 棒旋星系特征
+      const armTheta = Math.log(Math.max(r, 0.02) * 52000 / 1200) / ARM_PITCH;
+      let arm = 0;
+      let dust = 0;
+      const armSigma = 0.115 + 0.055 * r;
+      const dustSigma = 0.06 + 0.03 * r;
+      for (let a = 0; a < ARM_COUNT; a++) {
+        const strength = a % 2 === 0 ? 1 : 0.55;
+        const base = armTheta + (a * 2 * Math.PI) / ARM_COUNT;
+        const da = angleDist(theta, base);
+        const w = Math.exp(-(da * da) / (2 * armSigma * armSigma)) * strength;
+        if (w > arm) arm = w;
+        // 尘埃带：沿旋臂内缘（相位滞后）
+        const dd = angleDist(theta, base - 0.1);
+        const dw = Math.exp(-(dd * dd) / (2 * dustSigma * dustSigma)) * strength;
+        if (dw > dust) dust = dw;
+      }
+      const armI = arm * (0.28 + 0.7 * r) * clumpy * smooth01((r - 0.08) / 0.06);
+      // 粉红星形成区：高频噪声阈值斑，只出现在旋臂上
+      const hii = Math.max(0, sampleNoise(px * 0.05 + 37, py * 0.05 + 91) - 0.62) * 3.2 * arm * (1 - r * 0.5);
+      // 尘埃暗化（避开核心区）与外缘渐隐
+      const dark = 1 - dust * 0.68 * smooth01((r - 0.1) / 0.12);
+      const edge = 1 - smooth01((r - 0.86) / 0.12);
+
+      // —— 颜色（内暖金 → 外蓝白）——
+      const mixOut = Math.min(1, r * 1.5);
+      const diskR = 0.98 - 0.36 * mixOut;
+      const diskG = 0.9 - 0.18 * mixOut;
+      const diskB = 0.72 + 0.23 * mixOut;
+
+      let R =
+        diskI * diskR +
+        armI * 0.72 +
+        barI * 1.0 +
+        coreI * 1.0 +
+        hii * 0.95;
+      let G =
+        diskI * diskG +
+        armI * 0.82 +
+        barI * 0.91 +
+        coreI * 0.97 +
+        hii * 0.42;
+      let B =
+        diskI * diskB +
+        armI * 1.0 +
+        barI * 0.7 +
+        coreI * 0.88 +
+        hii * 0.5;
+
+      R = Math.min(1, R * dark * edge);
+      G = Math.min(1, G * dark * edge);
+      B = Math.min(1, B * dark * edge);
+
+      out[idx] = R * 255;
+      out[idx + 1] = G * 255;
+      out[idx + 2] = B * 255;
+      out[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/**
+ * 银河系呈现层（分层结构，由远及近）：
+ * - 照片盘纹理平面：拉远后银河全貌的主体（连续雾状旋臂，NASA Eyes 观感）
+ * - 邻域恒星：太阳周围 ~1200 光年的三维分布（独立于本 group，由场景单独管理）
+ * - 粒子盘 + 臂脊亮星 + 旋臂辉光 + 核球：近中景的立体感与离散星点
+ * - 银心光晕 + 远景太阳标记（SUN 标签，极远时太阳系保持一个可见亮点）
+ * @returns {{group: THREE.Group, materials: THREE.Material[], sunDot: THREE.Sprite, neighbors: THREE.Points, discTexture: THREE.Mesh}}
  */
 export function createGalaxy() {
   const rng = mulberry32(9917);
@@ -204,9 +352,28 @@ export function createGalaxy() {
       gcWorld.z + frame.u.z * x + frame.v.z * y + frame.ngp.z * z
     );
 
+  // —— 照片盘：程序化棒旋星系纹理贴到银道面 ——
+  const discTexture = new THREE.Mesh(
+    new THREE.PlaneGeometry(DISC_RADIUS_LY * LY * 2.12, DISC_RADIUS_LY * LY * 2.12),
+    new THREE.MeshBasicMaterial({
+      map: makeGalaxyTexture(),
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  );
+  discTexture.material.userData.baseOpacity = 0.95;
+  // 平面局部 X/Y 对齐银道坐标 u/v，法线指向银北极
+  discTexture.quaternion.setFromRotationMatrix(
+    new THREE.Matrix4().makeBasis(frame.u, frame.v, frame.ngp)
+  );
+  discTexture.position.copy(gcWorld);
+  discTexture.renderOrder = 0;
+  group.add(discTexture);
+
   // —— 银盘：四条对数螺旋臂 + 臂间散布 ——
-  const ARMS = 4;
-  const PITCH = Math.tan(THREE.MathUtils.degToRad(13));
   const DISC_COUNT = 46000;
   const RIDGE_COUNT = 9000; // 臂脊亮星：勾勒旋臂骨架
   const discPos = new Float32Array(DISC_COUNT * 3);
@@ -218,10 +385,10 @@ export function createGalaxy() {
     let theta;
     if (rng() < 0.8) {
       // 旋臂：对数螺旋 + 随半径展宽的角向散布
-      const arm = Math.floor(rng() * ARMS);
+      const arm = Math.floor(rng() * ARM_COUNT);
       theta =
-        Math.log(r / 1200) / PITCH +
-        (arm * 2 * Math.PI) / ARMS +
+        Math.log(r / 1200) / ARM_PITCH +
+        (arm * 2 * Math.PI) / ARM_COUNT +
         gaussian(rng) * (0.07 + 60 / r);
       onArm = true;
     } else {
@@ -244,7 +411,7 @@ export function createGalaxy() {
     discCol[i * 3 + 1] = c[1] * lum;
     discCol[i * 3 + 2] = c[2] * lum;
   }
-  const disc = buildPointsLayer(discPos, discCol, 2.0, 0.85, false, makeGlowTexture());
+  const disc = buildPointsLayer(discPos, discCol, 2.4, 0.85, false, makeGlowTexture());
   materials.push(disc.material);
   group.add(disc);
 
@@ -253,10 +420,10 @@ export function createGalaxy() {
   const ridgeCol = new Float32Array(RIDGE_COUNT * 3);
   for (let i = 0; i < RIDGE_COUNT; i++) {
     const r = 5200 + (DISC_RADIUS_LY - 5200) * Math.pow(rng(), 0.8);
-    const arm = Math.floor(rng() * ARMS);
+    const arm = Math.floor(rng() * ARM_COUNT);
     const theta =
-      Math.log(r / 1200) / PITCH +
-      (arm * 2 * Math.PI) / ARMS +
+      Math.log(r / 1200) / ARM_PITCH +
+      (arm * 2 * Math.PI) / ARM_COUNT +
       gaussian(rng) * (0.035 + 28 / r);
     const z = gaussian(rng) * (70 + r * 0.012);
     toWorld(r * Math.cos(theta), r * Math.sin(theta), z, tmp);
@@ -279,10 +446,10 @@ export function createGalaxy() {
   const glowCol = new Float32Array(GLOW_COUNT * 3);
   for (let i = 0; i < GLOW_COUNT; i++) {
     const r = 4500 + (DISC_RADIUS_LY - 4500) * Math.pow(rng(), 0.75);
-    const arm = Math.floor(rng() * ARMS);
+    const arm = Math.floor(rng() * ARM_COUNT);
     const theta =
-      Math.log(r / 1200) / PITCH +
-      (arm * 2 * Math.PI) / ARMS +
+      Math.log(r / 1200) / ARM_PITCH +
+      (arm * 2 * Math.PI) / ARM_COUNT +
       gaussian(rng) * (0.06 + 50 / r);
     const z = gaussian(rng) * (80 + r * 0.012);
     toWorld(r * Math.cos(theta), r * Math.sin(theta), z, tmp);
@@ -301,53 +468,7 @@ export function createGalaxy() {
   materials.push(armGlow.material);
   group.add(armGlow);
 
-  // —— 暗尘埃带：旋臂内缘的深色纹理，普通混合压出「照片」层次 ——
-  const DUST_COUNT = 5200;
-  const dustPos = new Float32Array(DUST_COUNT * 3);
-  const dustCol = new Float32Array(DUST_COUNT * 3);
-  for (let i = 0; i < DUST_COUNT; i++) {
-    const r = 5200 + (DISC_RADIUS_LY - 5200) * Math.pow(rng(), 0.78);
-    const arm = Math.floor(rng() * ARMS);
-    // 尘埃沿臂内缘偏移（θ 略小）
-    const theta =
-      Math.log(r / 1200) / PITCH +
-      (arm * 2 * Math.PI) / ARMS -
-      0.06 -
-      gaussian(rng) * (0.05 + 40 / r);
-    const z = gaussian(rng) * (55 + r * 0.008);
-    toWorld(r * Math.cos(theta), r * Math.sin(theta), z, tmp);
-    dustPos[i * 3] = tmp.x;
-    dustPos[i * 3 + 1] = tmp.y;
-    dustPos[i * 3 + 2] = tmp.z;
-    const lum = 0.16 + rng() * 0.1;
-    dustCol[i * 3] = 0.22 * lum;
-    dustCol[i * 3 + 1] = 0.17 * lum;
-    dustCol[i * 3 + 2] = 0.14 * lum;
-  }
-  const dustGeo = new THREE.BufferGeometry();
-  dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
-  dustGeo.setAttribute("color", new THREE.BufferAttribute(dustCol, 3));
-  const dustMat = new THREE.PointsMaterial({
-    size: 16,
-    sizeAttenuation: false,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.5,
-    depthWrite: false,
-    map: makeGlowTexture(),
-    blending: THREE.NormalBlending,
-  });
-  dustMat.userData.baseOpacity = 0.5;
-  dustMat.userData.dust = true; // 尘埃须渲染在辉光粒子之后压暗
-  materials.push(dustMat);
-  const dust = new THREE.Points(dustGeo, dustMat);
-  dust.renderOrder = 2;
-  group.add(dust);
-  armGlow.renderOrder = 1;
-  disc.renderOrder = 1;
-  ridge.renderOrder = 1;
-
-  // —— 核球：中央 3D 高斯分布，暖黄色 ——
+  // —— 核球：中央 3D 高斯分布，暖黄色（与纹理的棒状核球位置一致） ——
   const BULGE_COUNT = 5200;
   const bulgePos = new Float32Array(BULGE_COUNT * 3);
   const bulgeCol = new Float32Array(BULGE_COUNT * 3);
@@ -359,7 +480,7 @@ export function createGalaxy() {
     bulgePos[i * 3] = tmp.x;
     bulgePos[i * 3 + 1] = tmp.y;
     bulgePos[i * 3 + 2] = tmp.z;
-    const lum = 0.55 + rng() * 0.55;
+    const lum = 0.65 + rng() * 0.6;
     bulgeCol[i * 3] = 1.0 * lum;
     bulgeCol[i * 3 + 1] = 0.9 * lum;
     bulgeCol[i * 3 + 2] = 0.7 * lum;
@@ -419,10 +540,8 @@ export function createGalaxy() {
     nbCol[i * 3 + 1] = c[1] * lum;
     nbCol[i * 3 + 2] = c[2] * lum;
   });
-  const neighbors = buildPointsLayer(nbPos, nbCol, 4e5, 0.95, true, makeGlowTexture());
+  const neighbors = buildPointsLayer(nbPos, nbCol, 1.5e5, 0.95, true, makeGlowTexture());
   neighbors.renderOrder = 1;
-  materials.push(neighbors.material);
-  group.add(neighbors);
 
   // —— 银心光晕 ——
   const glow = new THREE.Sprite(
@@ -442,7 +561,7 @@ export function createGalaxy() {
   materials.push(glow.material);
   group.add(glow);
 
-  // —— 远景太阳标记：极远处太阳系缩成一个可见亮点 ——
+  // —— 远景太阳标记：极远处太阳系缩成一个可见亮点 + SUN 标签（NASA Eyes 风格） ——
   const sunDot = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: makeGlowTexture(),
@@ -454,9 +573,37 @@ export function createGalaxy() {
       blending: THREE.AdditiveBlending,
     })
   );
-  sunDot.scale.set(0.02, 0.02, 1);
+  sunDot.scale.set(0.03, 0.03, 1);
   sunDot.renderOrder = 3;
   group.add(sunDot);
 
-  return { group, materials, sunDot };
+  const labelDiv = document.createElement("div");
+  const lineEl = document.createElement("span");
+  const textEl = document.createElement("span");
+  textEl.textContent = "SUN";
+  Object.assign(labelDiv.style, {
+    color: "#F0F0FA",
+    fontFamily: "'Archivo', sans-serif",
+    fontSize: "11px",
+    fontWeight: "600",
+    letterSpacing: "2px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    transform: "translateY(-30px)",
+    pointerEvents: "none",
+  });
+  Object.assign(lineEl.style, {
+    display: "block",
+    width: "1px",
+    height: "14px",
+    background: "rgba(240,240,250,0.55)",
+    marginBottom: "4px",
+  });
+  labelDiv.appendChild(lineEl);
+  labelDiv.appendChild(textEl);
+  const sunLabel = new CSS2DObject(labelDiv);
+  sunDot.add(sunLabel);
+
+  return { group, materials, sunDot, neighbors, discTexture };
 }

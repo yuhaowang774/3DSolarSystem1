@@ -12,6 +12,14 @@ const planetData = {
     AU: 14959.7870895, // 天文单位（10000KM）
   },
 
+  // 宇宙背景
+  universe: {
+    radius: 100000000000,
+    name: "stars",
+    description:
+      "太阳系所处的浩瀚宇宙背景，包含无数星系、恒星和星际物质，是人类探索的终极边疆。",
+  },
+
   // 太阳
   sun: {
     radius: 69.6,

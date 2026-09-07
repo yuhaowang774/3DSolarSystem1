@@ -10,13 +10,14 @@ import {
   createSun,
   createPlanet,
   createRing,
+  createUniverse,
   createGroup,
   calculateEarthRotation,
   calculateTrueSubsolarLongitude,
   measureModelSubsolarLongitude,
   performSubsolarCalibration,
 } from "../js/utils.js";
-import { createGalaxy } from "./cosmos.js";
+
 import { planetData, cnNames } from "../js/dats.js";
 import {
   state,
@@ -171,59 +172,6 @@ export class SolarSystem {
     window.addEventListener("resize", this._onResize);
   }
 
-  /**
-   * 初始化宇宙呈现层（替代贴图天球）：
-   * - 星野：无穷远背景，恒星按银河带密度分布
-   * - 邻域真实恒星：独立于银河层，离开太阳系（约 3 光年）即渐显
-   * - 银河系：粒子盘 + 照片盘纹理 + 银心，缩放拉远时分层渐显
-   */
-  _initCosmos() {
-    this.galaxy = createGalaxy();
-    this.galaxy.group.visible = false;
-    this.scene.add(this.galaxy.group);
-    this.galaxyNeighbors = this.galaxy.neighbors;
-    this.galaxyNeighbors.visible = false;
-    this.scene.add(this.galaxyNeighbors);
-  }
-
-  /**
-   * 按相机距离驱动分层淡入（节奏对齐 NASA Eyes）：
-   * 邻域恒星(3 ly 起) → 粒子盘(30~800 ly) → 太阳亮点(3000 ly 起)
-   * → 照片盘纹理(2000~15000 ly)（完整银河全貌）
-   */
-  _updateCosmos() {
-    const d = this.camera.position.length();
-    // 太阳光晕在行星尺度恒定约 100px，拉远后淡出、由远景太阳亮点接管
-    const haloFade = 1 - THREE.MathUtils.smoothstep(d, 4e6, 4e7);
-    if (this.sunHalo) {
-      this.sunHalo.material.opacity = haloFade;
-      this.sunHalo.visible = d > 1000 && haloFade > 0.02;
-    }
-    // 真实邻域恒星：就在太阳周围 4~25 ly，离开太阳系后立即浮现
-    const nbT = THREE.MathUtils.smoothstep(d, 3e5, 2.5e6);
-    this.galaxyNeighbors.visible = nbT > 0.01;
-    if (this.galaxyNeighbors.visible) {
-      this.galaxyNeighbors.material.opacity =
-        this.galaxyNeighbors.material.userData.baseOpacity * nbT;
-    }
-    // 银河粒子层：星际空间中的散开星点与盘内视角
-    const t = THREE.MathUtils.smoothstep(d, 3e6, 8e7);
-    // 照片盘纹理：拉远后银河全貌的主体（连续雾状旋臂）
-    const tf = THREE.MathUtils.smoothstep(d, 2e8, 1.5e9);
-    this.galaxy.group.visible = t > 0.012 || tf > 0.012;
-    if (this.galaxy.group.visible) {
-      for (const m of this.galaxy.materials) {
-        m.opacity = m.userData.baseOpacity * t;
-      }
-      this.galaxy.discTexture.material.opacity =
-        this.galaxy.discTexture.material.userData.baseOpacity * tf;
-    }
-    // 极远处太阳系缩成一个亮点（含 SUN 标签）
-    const sunT = THREE.MathUtils.smoothstep(d, 3e7, 6e8);
-    this.galaxy.sunDot.material.opacity = sunT;
-    this.galaxy.sunDot.visible = sunT > 0.02;
-  }
-
   _initLights() {
     // 环境光：提供基础亮度，确保行星背光面也能显出纹理（不再全黑）
     this.scene.add(new THREE.AmbientLight(0x888888));
@@ -242,7 +190,12 @@ export class SolarSystem {
       "jupiter", "saturn", "uranus", "neptune", "moon",
     ];
 
-    this._initCosmos();
+    this.universe = createUniverse(
+      planetData.universe.name,
+      planetData.universe.radius,
+      this.loadingManager
+    );
+    this.scene.add(this.universe);
     this.sun = createSun(planetData.sun.name, planetData.sun.radius, this.loadingManager);
 
     this.sunHalo = createSprite("sun-glow", this.loadingManager);
@@ -886,7 +839,6 @@ export class SolarSystem {
     this._updatePlanets();
     this._updateSpriteSize(this.sunHalo);
     this._updateVisibility();
-    this._updateCosmos();
 
     // 过渡动画期间由 _selectAndFocus 独占相机控制，此处让行，避免两者互相覆盖
     // 跟随 cameraTarget（而非 selectedCelestial）：关闭信息面板不会中断跟随

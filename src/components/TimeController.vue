@@ -16,7 +16,7 @@ const playing = computed(() => state.isPlaying);
 
 const currentLabel = computed(() => timePresets[currentIndex.value]?.label || "实时");
 
-// UTC 任务时钟（自 TopBar 迁入，simDate 每帧随模拟时间更新）
+// 本地时区任务时钟（simDate 每帧随模拟时间更新）
 const utcTime = computed(() => {
   const d = state.simDate;
   if (!d) return "--";
@@ -27,16 +27,15 @@ const utcTime = computed(() => {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    timeZone: "UTC",
   });
 });
 
-// 折叠态头部的紧凑时刻（时:分:秒）
+// 折叠态头部的紧凑时刻（时:分:秒，本地时区）
 const timeShort = computed(() => {
   const d = state.simDate;
   if (!d) return "--:--:--";
   const p = (n) => String(n).padStart(2, "0");
-  return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 });
 
 function onSlider(e) {
@@ -49,7 +48,7 @@ function onSlider(e) {
     <button class="head" @click="toggleCollapse">
       <span class="label">TIME CONTROL</span>
       <span class="head-right">
-        <span class="clock">{{ timeShort }} UTC</span>
+        <span class="clock">{{ timeShort }}</span>
         <span class="chevron">{{ collapsed ? "▸" : "▾" }}</span>
       </span>
     </button>
@@ -57,7 +56,7 @@ function onSlider(e) {
     <div v-if="!collapsed" class="body">
       <div class="datetime">
         <span class="datetime-main">{{ utcTime }}</span>
-        <span class="datetime-zone">UTC · MISSION CLOCK</span>
+        <span class="datetime-zone">LOCAL · MISSION CLOCK</span>
       </div>
 
       <div class="status">

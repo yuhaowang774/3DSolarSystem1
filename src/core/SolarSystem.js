@@ -21,6 +21,8 @@ import {
 } from "../js/utils.js";
 
 import { planetData, cnNames } from "../js/dats.js";
+import { createStarfield } from "./starfield.js";
+import { createGalaxyPlane } from "./galaxy.js";
 import {
   state,
   commands,
@@ -109,6 +111,8 @@ export class SolarSystem {
     await this._onLoaded;
     this._updateLoadingState(true);
     this.animate();
+    // 开发模式调试句柄：console 里可访问 __solar.camera / __solar.starfield 调参验证
+    if (import.meta.env.DEV) window.__solar = this;
   }
 
   _updateLoadingState(done) {
@@ -124,8 +128,8 @@ export class SolarSystem {
 
     this.scene = new THREE.Scene();
 
-    // 远裁剪面覆盖银河系呈现尺度（盘半径 ~5e9 + 相机距离）
-    this.camera = new THREE.PerspectiveCamera(90, w / h, 0.001, 2e10);
+    // 远裁剪面覆盖银河照片全盘（40 kpc 真实比例 = 1.23e14 单位）
+    this.camera = new THREE.PerspectiveCamera(90, w / h, 0.001, 3e14);
     this.camera.position.set(139.2 * 100, 69.6 * 100, 139.2 * 100);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -156,7 +160,7 @@ export class SolarSystem {
     this.controls.zoomSpeed = 5.0;
     this.controls.smoothZoom = true;
     this.controls.minDistance = 0.001;
-    this.controls.maxDistance = 1.2e10;
+    this.controls.maxDistance = 2e14;
     this.controls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
       MIDDLE: THREE.MOUSE.DOLLY,
@@ -192,12 +196,26 @@ export class SolarSystem {
       "jupiter", "saturn", "uranus", "neptune", "moon",
     ];
 
-    this.universe = createUniverse(
-      planetData.universe.name,
-      planetData.universe.radius,
-      this.loadingManager
-    );
-    this.scene.add(this.universe);
+    // 真实星表星野层：NASA Eyes 风格稀疏恒星，按相机距离驱动可见性（锚点见 starfield.js）
+    this.starfield = createStarfield();
+    this.scene.add(this.starfield);
+
+    // 银河照片面片：Hurt 40KPC 俯视图，太阳 UV 点锚定在原点，姿态由
+    // 北银极 (-0.868,0.497,0) 与银心向量 (-0.055,-0.096,0.994) 标定（见 galaxy.js）
+    this.galaxyPlane = createGalaxyPlane(this.loadingManager);
+    this.scene.add(this.galaxyPlane);
+
+    // 旧贴图天球开关：已被真实星野替代，保留便于新旧对比（原决策点④：确认后可彻底移除）
+    const TEXTURE_SKYSPHERE_ENABLED = false;
+    this.universe = null;
+    if (TEXTURE_SKYSPHERE_ENABLED) {
+      this.universe = createUniverse(
+        planetData.universe.name,
+        planetData.universe.radius,
+        this.loadingManager
+      );
+      this.scene.add(this.universe);
+    }
     this.sun = createSun(planetData.sun.name, planetData.sun.radius, this.loadingManager);
 
     this.sunHalo = createSprite("sun-glow", this.loadingManager);
@@ -585,7 +603,7 @@ export class SolarSystem {
     const planetRadius = planetData[name]?.radius || 1;
     const safety = planetRadius > 10000 ? 1.5 : 1.2;
     const minDistance = planetRadius * safety;
-    const maxDistance = 1.2e10;
+    const maxDistance = 2e14;
     const sensitivity = 0.02;
     const zoomDelta = event.deltaY < 0 ? -sensitivity : sensitivity;
     let newDistance = currentDistance * (1 + zoomDelta);
@@ -871,6 +889,10 @@ export class SolarSystem {
     this._updatePlanets();
     this._updateSpriteSize(this.sunHalo);
     this._updateVisibility();
+    // 真实星野按相机到太阳的距离驱动：淡入/逐颗隐去/全隐（锚点见 starfield.js）
+    this.starfield.updateByDistance(this.camera.position.length());
+    // 银河照片面片随距离淡入（见 galaxy.js）
+    this.galaxyPlane.updateByDistance(this.camera.position.length());
 
     // 过渡动画期间由 _selectAndFocus 独占相机控制，此处让行，避免两者互相覆盖
     // 跟随 cameraTarget（而非 selectedCelestial）：关闭信息面板不会中断跟随

@@ -1,5 +1,8 @@
 import * as THREE from "three";
 import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { planetData } from "./dats.js";
 
 /**
@@ -398,6 +401,20 @@ function getPlanetPosition(str, date) {
 }
 
 /**
+ * NASA Eyes 风格轨道柔化色：低饱和、低亮度，轨迹线与行星位置圆环标记共用，
+ * 保证二者颜色深浅一致
+ * @param {number|string} colorLike - 原始颜色（行星主题色）
+ * @returns {THREE.Color} 柔化后的颜色
+ */
+function softOrbitColor(colorLike) {
+  const c = new THREE.Color(colorLike);
+  const hsl = {};
+  c.getHSL(hsl);
+  c.setHSL(hsl.h, Math.min(hsl.s * 0.6, 0.85), Math.min(Math.min(hsl.l, 0.62) * 1.08, 0.62));
+  return c;
+}
+
+/**
  * 创建轨道线
  * @param {string} str - 天体名称
  * @param {Date} [date=new Date()] - 用于计算轨道参数的时间，默认为当前时间
@@ -446,15 +463,26 @@ function createOrbit(str, date = new Date()) {
   }
 
   // 创建基础材质和几何体
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  const material = new THREE.LineBasicMaterial({
-    color: data.orbitColor || data.color,
+  // 用 Line2/LineMaterial 实现真正的像素级线宽（LineBasicMaterial 的 linewidth 在 WebGL 中固定为 1px）
+  // Line2 是折线而非闭环：末尾追加首点形成闭合
+  points.push(points[0].clone());
+  const flat = new Float32Array(points.length * 3);
+  points.forEach((p, i) => {
+    flat[i * 3] = p.x;
+    flat[i * 3 + 1] = p.y;
+    flat[i * 3 + 2] = p.z;
+  });
+  const geometry = new LineGeometry();
+  geometry.setPositions(Array.from(flat));
+  const material = new LineMaterial({
+    color: softOrbitColor(data.orbitColor || data.color),
     transparent: true,
-    opacity: 0.5,
-    linewidth: 1.0,
+    opacity: 0.45,
+    linewidth: 2.0, // 屏幕像素单位
+    worldUnits: false,
   });
 
-  const orbitLine = new THREE.LineLoop(geometry, material);
+  const orbitLine = new Line2(geometry, material);
 
   // 存储更多轨道参数信息，便于后续增量更新
   orbitLine._orbitData = {
@@ -497,10 +525,29 @@ function updateOrbitVertices(orbitLine, date) {
     const w = longPeri - longNode;
 
     // 获取几何体的顶点数据
+    // Line2 的 position 是 InterleavedBufferAttribute（instanceStart，stride=6，offset=0；
+    // 每段线段的终点 instanceEnd 位于 offset=3），写入需按交错布局进行
     const positionAttribute = orbitLine.geometry.getAttribute("position");
     const positions = positionAttribute.array;
+    const isInterleaved = !!positionAttribute.isInterleavedBufferAttribute;
+    const stride = isInterleaved ? positionAttribute.data.stride : 3;
+    const offset = isInterleaved ? positionAttribute.offset : 0;
+
+    /** 写入第 idx 个顶点：同时更新对应线段的起点与本段终点 */
+    const writeVertex = (idx, x, y, z) => {
+      positions[idx * stride + offset] = x;
+      positions[idx * stride + offset + 1] = y;
+      positions[idx * stride + offset + 2] = z;
+      if (idx > 0) {
+        // 上一段线段的终点即本点
+        positions[(idx - 1) * stride + offset + 3] = x;
+        positions[(idx - 1) * stride + offset + 3 + 1] = y;
+        positions[(idx - 1) * stride + offset + 3 + 2] = z;
+      }
+    };
 
     // 增量更新每个顶点的位置
+    let firstX = 0, firstY = 0, firstZ = 0;
     for (let i = 0; i < angles.length; i++) {
       const angle = angles[i];
       const v = angle;
@@ -517,14 +564,30 @@ function updateOrbitVertices(orbitLine, date) {
         (Math.cos(longNode) * Math.cos(v + w) -
           Math.sin(longNode) * Math.sin(v + w) * Math.cos(I));
 
-      // 更新顶点数据
-      positions[i * 3] = relX;
-      positions[i * 3 + 1] = relY;
-      positions[i * 3 + 2] = relZ;
+      writeVertex(i, relX, relY, relZ);
+      if (i === 0) {
+        firstX = relX;
+        firstY = relY;
+        firstZ = relZ;
+      }
+    }
+
+    // Line2 为折线：同步末尾的闭合点（= 首点）
+    if (isInterleaved) {
+      const n = angles.length;
+      writeVertex(n, firstX, firstY, firstZ);
+      // 最后一段线段的终点也是闭合点
+      positions[(n - 1) * stride + offset + 3] = firstX;
+      positions[(n - 1) * stride + offset + 3 + 1] = firstY;
+      positions[(n - 1) * stride + offset + 3 + 2] = firstZ;
     }
 
     // 通知Three.js几何体已更新
-    positionAttribute.needsUpdate = true;
+    if (isInterleaved) {
+      positionAttribute.data.needsUpdate = true;
+    } else {
+      positionAttribute.needsUpdate = true;
+    }
     orbitLine.geometry.computeBoundingSphere();
 
     // 更新时间戳
@@ -1122,6 +1185,7 @@ export {
   createGroup,
   createEarthMaterial,
   createEarthAtmosphere,
+  softOrbitColor,
   createLocationMarker,
   calculateEarthRotation,
 

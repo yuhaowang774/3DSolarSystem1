@@ -18,6 +18,7 @@ import {
   calculateTrueSubsolarLongitude,
   measureModelSubsolarLongitude,
   performSubsolarCalibration,
+  softOrbitColor,
 } from "../js/utils.js";
 
 import { planetData, cnNames } from "../js/dats.js";
@@ -77,6 +78,8 @@ export class SolarSystem {
     this._tmpVec = new THREE.Vector3();
     this._raf = null;
     this._disposed = false;
+    // 行星位置圆环标记的内层元素表（按天体名索引），驱动「贴近淡出」
+    this._orbitMarkerInners = {};
 
     // 统一纹理加载管理器：真实跟踪资源加载进度
     this.loadingManager = new THREE.LoadingManager();
@@ -110,6 +113,7 @@ export class SolarSystem {
     // 等待真实纹理加载完成（缓存命中也会立即 resolve）
     await this._onLoaded;
     this._updateLoadingState(true);
+    this._updateOrbitResolution();
     this.animate();
     // 开发模式调试句柄：console 里可访问 __solar.camera / __solar.starfield 调参验证
     if (import.meta.env.DEV) window.__solar = this;
@@ -303,20 +307,15 @@ export class SolarSystem {
       const data = planetData[name];
       if (group && orbit && data) this._addLabel(group, orbit, data.radius, name);
     });
+    // 太阳标签（太阳无轨道线，hover 高亮逻辑不适用）
+    if (this.sun) this._addSunLabel();
   }
 
-  _addLabel(group, orbit, size, name) {
-    if (!group.children[0]) return;
-    const mesh = group.children[0];
+  /** 太阳专属标签：SUN 文字标签 + 金色圆环，随镜头远去渐隐 */
+  _addSunLabel() {
     const iconDiv = document.createElement("div");
     iconDiv.className = "celestial-label";
-
-    const planetColor = planetData[name]?.color || 0xffffff;
-    const colorHex = "#" + planetColor.toString(16).padStart(6, "0");
-
-    iconDiv.innerHTML = `
-      <span class="planet-dot" style="background:${colorHex};"></span>
-      <span class="planet-name">${name.toUpperCase()}</span>`;
+    iconDiv.innerHTML = `<span class="planet-name">SUN</span>`;
     Object.assign(iconDiv.style, {
       pointerEvents: "auto",
       color: "white",
@@ -331,35 +330,77 @@ export class SolarSystem {
       cursor: "pointer",
       transition: "opacity 0.25s ease",
       whiteSpace: "nowrap",
-      display: "flex",
-      alignItems: "center",
-      gap: "6px",
       boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+      // 屏幕空间右上偏移：文字贴在圆环标记右上方，避免与天体重叠
+      margin: "-18px 0 0 12px",
     });
+    iconDiv.addEventListener("click", () => this._focusByMesh(this.sun));
+    iconDiv.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        this._focusByMesh(this.sun);
+      },
+      { passive: false }
+    );
 
-    const handleClick = () => this._focusByMesh(mesh);
-    iconDiv.addEventListener("click", handleClick);
-    iconDiv.addEventListener("touchstart", (e) => { e.preventDefault(); handleClick(); }, { passive: false });
-
-    if (name !== "sun") {
-      const originalColor = orbit.material.color.clone();
-      iconDiv.addEventListener("mouseover", () => {
-        orbit.material.color.copy(originalColor).multiplyScalar(1.5);
-        orbit.material.linewidth = 3.0;
-        Object.assign(iconDiv.style, { background: "rgba(0,0,0,0.4)", transform: "scale(1.05)", boxShadow: `0 4px 12px rgba(0,0,0,0.7),0 0 15px ${orbit.material.color.getStyle()}` });
-      });
-      iconDiv.addEventListener("mouseout", () => {
-        orbit.material.color.copy(originalColor);
-        orbit.material.linewidth = 1.5;
-        Object.assign(iconDiv.style, { background: "transparent", transform: "scale(1)", boxShadow: "0 2px 8px rgba(0,0,0,0.5)" });
-      });
-    }
+    // 金色圆环标示太阳位置（贴在天体中心），随标签同步淡出
+    const sunRingInner = this._addOrbitMarker(this.sun, "#ffd166", "sun");
 
     const iconLabel = new CSS2DObject(iconDiv);
-    iconLabel.position.set(0, size * 1.5, 0);
+    iconLabel.position.set(0, planetData.sun.radius * 1.5, 0);
     iconLabel.layers.set(0);
-    mesh.add(iconLabel);
+    this.sun.add(iconLabel);
 
+    const _labelWorldPos = new THREE.Vector3();
+    iconLabel.onBeforeRender = (_, __, camera) => {
+      if (this._disposed) return;
+      _labelWorldPos.setFromMatrixPosition(iconLabel.matrixWorld);
+      const labelDistance = camera.position.distanceTo(_labelWorldPos);
+
+      // ① 远去淡出：log(d) 在 [5e9, 5e10] 区间线性渐隐
+      const t = Math.max(
+        0,
+        Math.min(1, (Math.log10(labelDistance) - 9.7) / (10.7 - 9.7))
+      );
+      const distFade = 1 - t * t * (3 - 2 * t);
+
+      // ② 遮挡淡出：被行星挡住时淡出
+      this.raycaster.set(
+        camera.position,
+        _labelWorldPos.clone().sub(camera.position).normalize()
+      );
+      const intersects = this.raycaster.intersectObjects(
+        [...Object.values(this.planets)],
+        false
+      );
+      let closest = null;
+      for (const it of intersects) {
+        if (it.distance < labelDistance - 0.1) {
+          if (!closest || it.distance < closest.distance) closest = it;
+        }
+      }
+      const occlusionFade = closest
+        ? Math.max(
+            0,
+            Math.min(1, 1 - (1 - closest.distance / labelDistance) * 1.2)
+          )
+        : 1;
+
+      const fade = distFade * occlusionFade;
+      iconDiv.style.opacity = String(fade);
+      iconDiv.style.pointerEvents = fade < 0.1 ? "none" : "auto";
+      if (sunRingInner) sunRingInner.style.opacity = String(fade);
+    };
+  }
+
+  /**
+   * 挂接遮挡淡出：标签/标记被其他天体挡住时整体淡出
+   * @param {CSS2DObject} iconLabel
+   * @param {HTMLElement} iconDiv
+   * @param {THREE.Mesh} selfMesh 自身网格（不参与自遮挡判定）
+   */
+  _attachOcclusionFade(iconLabel, iconDiv, selfMesh) {
     const _labelWorldPos = new THREE.Vector3();
     const _occluderTargets = () => [this.sun, ...Object.values(this.planets)];
     iconLabel.onBeforeRender = (_, __, camera) => {
@@ -370,7 +411,7 @@ export class SolarSystem {
       const intersects = this.raycaster.intersectObjects(_occluderTargets(), false);
       let closest = null;
       for (const it of intersects) {
-        if (it.object !== mesh && it.distance < labelDistance - 0.1) {
+        if (it.object !== selfMesh && it.distance < labelDistance - 0.1) {
           if (!closest || it.distance < closest.distance) closest = it;
         }
       }
@@ -382,6 +423,90 @@ export class SolarSystem {
       }
       iconDiv.style.pointerEvents = Number(iconDiv.style.opacity) < 0.1 ? "none" : "auto";
     };
+  }
+
+  /**
+   * 行星位置圆环标记（NASA Eyes 风格）：空心圆环标示行星在轨迹线上的当前位置，
+   * 锚定在天体中心、恒定屏幕尺寸，随遮挡淡出。
+   * 颜色与透明度同对应轨迹线（共用柔化色 + 0.45 alpha）。
+   * 内层元素注册到 _orbitMarkerInners，供 _updateVisibility 驱动「贴近淡出」
+   * @returns {HTMLElement} 圆环内层元素
+   */
+  _addOrbitMarker(mesh, colorHex, name) {
+    const ringDiv = document.createElement("div");
+    ringDiv.className = "orbit-marker";
+    const ringInner = document.createElement("span");
+    ringInner.className = "orbit-marker-inner";
+    const c = softOrbitColor(colorHex);
+    ringInner.style.borderColor = `rgba(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}, 0.45)`;
+    ringDiv.appendChild(ringInner);
+    const marker = new CSS2DObject(ringDiv);
+    marker.position.set(0, 0, 0);
+    marker.layers.set(0);
+    mesh.add(marker);
+    this._attachOcclusionFade(marker, ringDiv, mesh);
+    if (name) this._orbitMarkerInners[name] = ringInner;
+    return ringInner;
+  }
+
+  _addLabel(group, orbit, size, name) {
+    if (!group.children[0]) return;
+    const mesh = group.children[0];
+    const iconDiv = document.createElement("div");
+    iconDiv.className = "celestial-label";
+
+    const planetColor = planetData[name]?.color || 0xffffff;
+    const colorHex = "#" + planetColor.toString(16).padStart(6, "0");
+
+    iconDiv.innerHTML = `<span class="planet-name">${name.toUpperCase()}</span>`;
+    Object.assign(iconDiv.style, {
+      pointerEvents: "auto",
+      color: "white",
+      fontFamily: "'Archivo', sans-serif",
+      fontSize: "12px",
+      fontWeight: "600",
+      textAlign: "center",
+      background: "transparent",
+      borderRadius: "16px",
+      padding: "3px 10px",
+      border: "none",
+      cursor: "pointer",
+      transition: "opacity 0.25s ease",
+      whiteSpace: "nowrap",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+      // 屏幕空间右上偏移：文字贴在圆环标记右上方，避免与天体重叠
+      margin: "-18px 0 0 12px",
+    });
+
+    const handleClick = () => this._focusByMesh(mesh);
+    iconDiv.addEventListener("click", handleClick);
+    iconDiv.addEventListener("touchstart", (e) => { e.preventDefault(); handleClick(); }, { passive: false });
+
+    // 行星位置空心圆环标记（贴在天体中心、轨迹线上），并联动标签 hover
+    const ringInner = this._addOrbitMarker(mesh, colorHex, name);
+
+    if (name !== "sun") {
+      const originalColor = orbit.material.color.clone();
+      const highlightColor = originalColor.clone().lerp(new THREE.Color(1, 1, 1), 0.8);
+      iconDiv.addEventListener("mouseover", () => {
+        // 轨迹线高亮：大幅向白色插值（opacity 会被每帧可见性逻辑覆写，不可用）
+        orbit.material.color.copy(highlightColor);
+        // 圆环放大联动
+        ringInner.parentElement.classList.add("hover");
+        Object.assign(iconDiv.style, { background: "rgba(0,0,0,0.4)", boxShadow: `0 4px 12px rgba(0,0,0,0.7),0 0 15px ${highlightColor.getStyle()}` });
+      });
+      iconDiv.addEventListener("mouseout", () => {
+        orbit.material.color.copy(originalColor);
+        ringInner.parentElement.classList.remove("hover");
+        Object.assign(iconDiv.style, { background: "transparent", boxShadow: "0 2px 8px rgba(0,0,0,0.5)" });
+      });
+    }
+
+    const iconLabel = new CSS2DObject(iconDiv);
+    iconLabel.position.set(0, size * 1.5, 0);
+    iconLabel.layers.set(0);
+    mesh.add(iconLabel);
+    this._attachOcclusionFade(iconLabel, iconDiv, mesh);
   }
 
   _bindCommands() {
@@ -591,7 +716,18 @@ export class SolarSystem {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this._updateSpriteSize(this.sunHalo);
+    this._updateOrbitResolution();
   };
+
+  /** LineMaterial 按屏幕尺寸计算像素线宽，resize 与初始化时需同步 */
+  _updateOrbitResolution() {
+    if (!this.renderer || !this.orbits) return;
+    const w = this.renderer.domElement.clientWidth;
+    const h = this.renderer.domElement.clientHeight;
+    Object.values(this.orbits).forEach((o) => {
+      o?.material?.resolution?.set(w, h);
+    });
+  }
 
   _onWheel = (event) => {
     if (!this.cameraTarget) return;
@@ -855,7 +991,10 @@ export class SolarSystem {
         }
         factor *= globalFade;
         orbit.visible = shouldBeVisible && factor > 0.015;
-        orbit.material.opacity = 0.5 * factor;
+        orbit.material.opacity = 0.45 * factor;
+        // 圆环标记跟随轨迹线同步淡出（inner 的 opacity 与遮挡淡出的外层 opacity 相乘）
+        const markerInner = this._orbitMarkerInners[name];
+        if (markerInner) markerInner.style.opacity = String(factor);
       }
     });
   }
@@ -899,6 +1038,18 @@ export class SolarSystem {
     if (this.cameraTarget && !this._isTransitioning) {
       const targetPos = new THREE.Vector3();
       this.cameraTarget.getWorldPosition(targetPos);
+      // 移动端双指缩放：OrbitControls 的 dolly 直接改相机位置，
+      // 而锁定逻辑每帧用 cameraOffset×distanceScale 覆盖位置会吞掉该变化。
+      // 在覆盖前检测实际距离与期望距离的偏差，反向同步到 distanceScale
+      const actualDist = this.camera.position.distanceTo(targetPos);
+      const desiredDist = this.cameraOffset.length() * this.distanceScale;
+      if (desiredDist > 0 && Math.abs(actualDist - desiredDist) > desiredDist * 1e-3) {
+        const name = this.cameraTarget.name.toLowerCase();
+        const planetRadius = planetData[name]?.radius || 1;
+        const safety = planetRadius > 10000 ? 1.5 : 1.2;
+        const minScale = (planetRadius * safety) / this.cameraOffset.length();
+        this.distanceScale = Math.max(minScale, actualDist / this.cameraOffset.length());
+      }
       const scaledOffset = this.cameraOffset.clone().multiplyScalar(this.distanceScale).applyQuaternion(this.camera.quaternion);
       let desired = targetPos.clone().add(scaledOffset);
       const sunPos = new THREE.Vector3();

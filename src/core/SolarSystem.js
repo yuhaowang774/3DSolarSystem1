@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { CameraDirector } from "./CameraDirector.js";
+import { SHOTS } from "./shots.js";
 
 import {
   getPlanetPosition,
@@ -80,6 +82,8 @@ export class SolarSystem {
     this._disposed = false;
     // 行星位置圆环标记的内层元素表（按天体名索引），驱动「贴近淡出」
     this._orbitMarkerInners = {};
+    // 运镜系统：播放期间独占相机（animate 中与跟随/controls 互斥）
+    this.directorActive = false;
 
     // 统一纹理加载管理器：真实跟踪资源加载进度
     this.loadingManager = new THREE.LoadingManager();
@@ -108,6 +112,7 @@ export class SolarSystem {
     this._initBodies();
     this._initRings();
     this._initLabels();
+    this._initDirector();
     this._bindCommands();
     this._bindInput();
     // 等待真实纹理加载完成（缓存命中也会立即 resolve）
@@ -309,6 +314,27 @@ export class SolarSystem {
     });
     // 太阳标签（太阳无轨道线，hover 高亮逻辑不适用）
     if (this.sun) this._addSunLabel();
+  }
+
+  /** 运镜系统初始化：director 实例 + 右上角入口/跳过按钮 */
+  _initDirector() {
+    this.director = new CameraDirector(this.camera, (name, out) => {
+      if (name === "sun") return this.sun.getWorldPosition(out);
+      const group = this.celestialGroups[name];
+      return group ? group.getWorldPosition(out) : out.set(0, 0, 0);
+    });
+    this.director.onComplete = () => this._endDirector(true);
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "director-btn";
+    btn.textContent = "CINEMATIC ▶";
+    btn.addEventListener("click", () => {
+      if (this.directorActive) this._endDirector(false);
+      else this._startDirector();
+    });
+    this.container.appendChild(btn);
+    this._directorBtn = btn;
   }
 
   /** 太阳专属标签：SUN 文字标签 + 金色圆环，随镜头远去渐隐 */
@@ -796,8 +822,56 @@ export class SolarSystem {
   };
 
   _onKeyDown = (event) => {
-    if (event.key === "Escape" && this.cameraTarget) this._unlockCamera();
+    if (event.key === "Escape") {
+      if (this.directorActive) this._endDirector(false);
+      else if (this.cameraTarget) this._unlockCamera();
+    }
   };
+
+  /** 启动运镜：挂起一切相机控制权，交给 CameraDirector */
+  _startDirector() {
+    if (this.directorActive || this._isTransitioning) return;
+    this.directorActive = true;
+    this._cancelTransition();
+    this.cameraTarget = null; // 停用跟随（animate 中互斥分支接管）
+    this.controls.enabled = false;
+    this._savedFov = this.camera.fov;
+    this.director.play(SHOTS);
+    this._updateDirectorButton();
+  }
+
+  /** 结束运镜（completed=true 为自然播完）：恢复相机与交互 */
+  _endDirector(completed) {
+    if (!this.directorActive) return;
+    this.directorActive = false;
+    this.director.stop();
+    this.camera.fov = this._savedFov;
+    this.camera.updateProjectionMatrix();
+    // 相机平滑接管：target 从当前视线点滑回原点，避免拖动突兀
+    const cur = this.director._lookAtProxy.clone();
+    this.controls.target.copy(cur);
+    this.controls.enabled = true;
+    // 相机保持当前位置，重新推导跟随基准（下次锁定天体时按新位置起算）
+    this.cameraTarget = null;
+    this.selectedCelestial = null;
+    state.selectedBody = null;
+    state.infoPanelOpen = false;
+    this._updateDirectorButton();
+    if (completed) {
+      // 播完后的运镜终点即全景俯视位：以当前距离重建 cameraOffset，便于继续漫游
+      const dist = this.camera.position.length();
+      this.cameraOffset.set(0, 0, dist);
+      this.distanceScale = 1;
+    }
+  }
+
+  /** 运镜入口按钮 / 跳过按钮的双态文案 */
+  _updateDirectorButton() {
+    if (!this._directorBtn) return;
+    this._directorBtn.textContent = this.directorActive
+      ? "SKIP ▶▶"
+      : "CINEMATIC ▶";
+  }
 
   _updatePlanets() {
     const names = Object.keys(this.planets);
@@ -1033,9 +1107,10 @@ export class SolarSystem {
     // 银河照片面片随距离淡入（见 galaxy.js）
     this.galaxyPlane.updateByDistance(this.camera.position.length());
 
-    // 过渡动画期间由 _selectAndFocus 独占相机控制，此处让行，避免两者互相覆盖
-    // 跟随 cameraTarget（而非 selectedCelestial）：关闭信息面板不会中断跟随
-    if (this.cameraTarget && !this._isTransitioning) {
+    // 运镜期间：CameraDirector 独占相机（GSAP onUpdate 写位置，此处仅接管视线）
+    if (this.directorActive) {
+      this.director.applyLookAt();
+    } else if (this.cameraTarget && !this._isTransitioning) {
       const targetPos = new THREE.Vector3();
       this.cameraTarget.getWorldPosition(targetPos);
       // 移动端双指缩放：OrbitControls 的 dolly 直接改相机位置，
@@ -1073,7 +1148,8 @@ export class SolarSystem {
       }
     }
 
-    this.controls.update();
+    // 运镜期间禁用 controls.update()：其内部仍会按阻尼状态重写相机位置，覆盖导演镜头
+    if (!this.directorActive) this.controls.update();
     this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
   };

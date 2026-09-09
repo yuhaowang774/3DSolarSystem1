@@ -11,6 +11,7 @@
     "optimize:textures": "node scripts/optimize-textures.mjs"
   },
   "dependencies": {
+    "gsap": "^3.15.0",
     "three": "^0.170.0",
     "vue": "^3.5.13"
   },

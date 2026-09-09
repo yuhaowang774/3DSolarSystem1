@@ -370,9 +370,6 @@ export class SolarSystem {
       { passive: false }
     );
 
-    // 金色圆环标示太阳位置（贴在天体中心），随标签同步淡出
-    const sunRingInner = this._addOrbitMarker(this.sun, "#ffd166", "sun");
-
     const iconLabel = new CSS2DObject(iconDiv);
     iconLabel.position.set(0, planetData.sun.radius * 1.5, 0);
     iconLabel.layers.set(0);
@@ -416,7 +413,6 @@ export class SolarSystem {
       const fade = distFade * occlusionFade;
       iconDiv.style.opacity = String(fade);
       iconDiv.style.pointerEvents = fade < 0.1 ? "none" : "auto";
-      if (sunRingInner) sunRingInner.style.opacity = String(fade);
     };
   }
 
@@ -1016,25 +1012,15 @@ export class SolarSystem {
 
   _updateVisibility() {
     const names = Object.keys(this.celestialGroups);
-    // 先收集相机到各天体的距离，并计算「贴近度」：
-    // 相机距任一天体表面越近，值越小（以天体半径 × 300 为参照）
+    // 收集相机到各天体的距离（逐天体「贴近隐去自身轨迹线」使用）
     const distances = {};
-    let proximity = Infinity;
     names.forEach((name) => {
       const group = this.celestialGroups[name];
       const data = planetData[name];
       if (!group || !data) return;
       group.getWorldPosition(this._tmpVec);
-      const distance = this.camera.position.distanceTo(this._tmpVec);
-      distances[name] = distance;
-      proximity = Math.min(
-        proximity,
-        distance / Math.max(1e-9, data.radius * 300)
-      );
+      distances[name] = this.camera.position.distanceTo(this._tmpVec);
     });
-    // 贴近任意天体时全局隐去所有轨迹线，保持近景视野干净（NASA Eyes 风格）
-    const gx = Math.max(0, Math.min(1, (proximity - 0.25) / 0.75));
-    const globalFade = gx * gx * (3 - 2 * gx);
 
     names.forEach((name) => {
       const group = this.celestialGroups[name];
@@ -1063,7 +1049,6 @@ export class SolarSystem {
           );
           factor = t * t * (3 - 2 * t); // smoothstep
         }
-        factor *= globalFade;
         orbit.visible = shouldBeVisible && factor > 0.015;
         orbit.material.opacity = 0.45 * factor;
         // 圆环标记跟随轨迹线同步淡出（inner 的 opacity 与遮挡淡出的外层 opacity 相乘）

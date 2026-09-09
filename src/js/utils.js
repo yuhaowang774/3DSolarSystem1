@@ -696,12 +696,18 @@ const EARTH_VERT = /* glsl */ `
   varying vec3 vViewNormal;
   varying vec3 vViewPos;
 
+  // 对数深度：渲染器开启 logarithmicDepthBuffer 时必须写入对数深度，
+  // 否则与内置材质（太阳/光晕）的深度值不在同一坐标系，导致太阳穿透地球
+  #include <common>
+  #include <logdepthbuf_pars_vertex>
+
   void main() {
     vUv = uv;
     vViewNormal = normalize(normalMatrix * normal);
     vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
     vViewPos = mvPos.xyz;
     gl_Position = projectionMatrix * mvPos;
+    #include <logdepthbuf_vertex>
   }
 `;
 
@@ -720,7 +726,11 @@ const EARTH_FRAG = /* glsl */ `
   varying vec3 vViewNormal;
   varying vec3 vViewPos;
 
+  #include <logdepthbuf_pars_fragment>
+
   void main() {
+    #include <logdepthbuf_fragment>
+
     vec3 normal = normalize(vViewNormal);
     vec3 sunDir = normalize(uSunDirection);
     vec3 viewDir = normalize(-vViewPos);
@@ -773,7 +783,11 @@ const ATMOSPHERE_FRAG = /* glsl */ `
 
   varying vec3 vViewNormal;
 
+  #include <logdepthbuf_pars_fragment>
+
   void main() {
+    #include <logdepthbuf_fragment>
+
     // 背面渲染：视线与法线越接近垂直（轮廓边缘）辉光越强
     float rim = pow(1.0 - abs(dot(normalize(vViewNormal), vec3(0.0, 0.0, 1.0))), 4.0);
     float sunLit = clamp(dot(normalize(vViewNormal), normalize(uSunDirection)) * 1.6 + 0.5, 0.0, 1.0);

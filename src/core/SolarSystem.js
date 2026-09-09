@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import { CameraDirector } from "./CameraDirector.js";
-import { SHOTS } from "./shots.js";
+import { TOUR } from "./shots.js";
 
 import {
   getPlanetPosition,
@@ -113,6 +113,7 @@ export class SolarSystem {
     this._initRings();
     this._initLabels();
     this._initDirector();
+    this._initFpsCounter();
     this._bindCommands();
     this._bindInput();
     // 等待真实纹理加载完成（缓存命中也会立即 resolve）
@@ -144,6 +145,7 @@ export class SolarSystem {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       logarithmicDepthBuffer: true,
+      powerPreference: "high-performance", // 强制使用独立 GPU（双显卡设备常默认集显导致帧率低）
     });
     this.renderer.setSize(w, h);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -191,11 +193,10 @@ export class SolarSystem {
     // 环境光：提供基础亮度，确保行星背光面也能显出纹理（不再全黑）
     this.scene.add(new THREE.AmbientLight(0x888888));
     // 点光源（太阳）：decay=0 且 distance=0 表示无衰减、覆盖全场景
+    // 注意不开启阴影：点光源阴影为立方体贴图，每帧需渲染场景 6 遍，
+    // 而行星间距数万单位、1024 分辨率下根本产生不了可见阴影，纯浪费帧率
     this.pointLight = new THREE.PointLight(0xffffff, 3, 0, 0);
     this.pointLight.position.set(0, 0, 0);
-    this.pointLight.castShadow = true;
-    this.pointLight.shadow.mapSize.width = 1024;
-    this.pointLight.shadow.mapSize.height = 1024;
     this.scene.add(this.pointLight);
   }
 
@@ -830,9 +831,10 @@ export class SolarSystem {
     this.directorActive = true;
     this._cancelTransition();
     this.cameraTarget = null; // 停用跟随（animate 中互斥分支接管）
+    this._updateLockIndicator(null); // 清除残留的锁定徽标，避免运镜画面被 UI 污染
     this.controls.enabled = false;
     this._savedFov = this.camera.fov;
-    this.director.play(SHOTS);
+    this.director.playTour(TOUR);
     this._updateDirectorButton();
   }
 
@@ -867,6 +869,46 @@ export class SolarSystem {
     this._directorBtn.textContent = this.directorActive
       ? "SKIP ▶▶"
       : "CINEMATIC ▶";
+  }
+
+  /** 运行帧数 + 镜头速度显示：每 0.5s 统计一次，便于直观定位卡顿 */
+  _initFpsCounter() {
+    const el = document.createElement("div");
+    el.className = "fps-counter";
+    el.innerHTML = '<span class="fps-value">--</span> FPS<span class="fps-sep"> · </span><span class="speed-value">--</span> 万km/s';
+    this.container.appendChild(el);
+    this._fpsCounterEl = el;
+    this._fpsEl = el.querySelector(".fps-value");
+    this._speedEl = el.querySelector(".speed-value");
+    this._fpsFrames = 0;
+    this._fpsWindowStart = performance.now();
+    this._prevCamPos = this.camera.position.clone();
+  }
+
+  /** 帧计数 + 速度统计：每 0.5s 刷新一次读数（频繁更新 DOM 反而引入抖动） */
+  _tickFps() {
+    if (!this._fpsEl) return;
+    this._fpsFrames++;
+    const now = performance.now();
+    const elapsed = now - this._fpsWindowStart;
+    if (elapsed >= 500) {
+      this._fpsEl.textContent = String(Math.round((this._fpsFrames * 1000) / elapsed));
+      // 镜头速度：窗口内平均位移速率。1 场景单位 = 1 万公里 → v 单位/s = v 万km/s
+      const dist = this.camera.position.distanceTo(this._prevCamPos);
+      const speed = dist / (elapsed / 1000);
+      this._speedEl.textContent = this._formatSpeed(speed);
+      this._prevCamPos.copy(this.camera.position);
+      this._fpsFrames = 0;
+      this._fpsWindowStart = now;
+    }
+  }
+
+  /** 速度格式化：万km/s，量级跨度大时自动切换万/亿/科学计数 */
+  _formatSpeed(v) {
+    if (v >= 1e8) return v.toExponential(1);
+    if (v >= 1e4) return (v / 1e4).toFixed(1) + " 亿";
+    if (v >= 1000) return Math.round(v).toLocaleString();
+    return v.toFixed(1);
   }
 
   _updatePlanets() {
@@ -1073,6 +1115,7 @@ export class SolarSystem {
     if (this._disposed) return;
     this._raf = requestAnimationFrame(this.animate);
     const delta = this.clock.getDelta();
+    this._tickFps();
 
     if (state.isRealtime) {
       this.simulatedDate = new Date();
@@ -1155,6 +1198,7 @@ export class SolarSystem {
     window.removeEventListener("pointerup", this._onWindowPointerUp);
     window.removeEventListener("keydown", this._onKeyDown);
     this._updateLockIndicator(null);
+    this._fpsCounterEl?.remove();
     this.controls?.dispose();
     this.renderer?.dispose();
     if (this.renderer?.domElement?.parentNode) this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);

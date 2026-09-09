@@ -108,6 +108,28 @@ body {
   border-color: rgba(255, 255, 255, 0.5);
 }
 
+/* ---------- 运行帧数显示 ---------- */
+.fps-counter {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 28;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  font-family: var(--font);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--ink-soft);
+  pointer-events: none;
+  user-select: none;
+}
+.fps-counter .fps-value {
+  color: #fff;
+  font-weight: 600;
+}
+
 /* ---------- 相机锁定状态徽标 ---------- */
 .camera-lock-badge {
   position: absolute;

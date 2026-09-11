@@ -50,3 +50,8 @@ _frames/
 _nasa_analysis/
 analyze_*_tmp.py
 *.mp4
+
+# local archives & tooling (2026-09 cleanup)
+_archive/
+HYGdata/
+.playwright-cli/

@@ -22,6 +22,9 @@ const state = reactive({
 
   // 日下点校准调试信息（由场景写入，信息面板消费）
   debugInfo: null,
+
+  // 一镜到底运镜播放状态（由场景写入，顶栏按钮消费）
+  directorActive: false,
 });
 
 // 命令回调：场景实例注册这些方法，组件调用
@@ -33,6 +36,7 @@ const commands = {
   resetTime: null,
   selectBody: null,
   closePanel: null,
+  toggleDirector: null,
 };
 
 export { state, commands };

@@ -86,28 +86,6 @@ body {
   transform: scale(1.45);
 }
 
-/* ---------- 运镜入口/跳过按钮 ---------- */
-.director-btn {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  z-index: 28;
-  padding: 7px 16px;
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
-  font-family: var(--font);
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: var(--ink-soft);
-  cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
-}
-.director-btn:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.5);
-}
-
 /* ---------- 运行帧数显示 ---------- */
 .fps-counter {
   position: absolute;

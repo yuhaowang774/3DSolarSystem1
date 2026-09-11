@@ -1,10 +1,15 @@
 <script setup>
-import { state } from "../store/useStore.js";
+import { state, commands } from "../store/useStore.js";
 
 // 右上角信息面板开关：从未选中过天体时默认展示太阳
 function togglePanel() {
   if (!state.selectedBody) state.selectedBody = "sun";
   state.infoPanelOpen = !state.infoPanelOpen;
+}
+
+// 一镜到底运镜：播放 / 跳过命令由 3D 场景注册（commands 桥接）
+function toggleDirector() {
+  commands.toggleDirector?.();
 }
 </script>
 
@@ -14,20 +19,32 @@ function togglePanel() {
       <span class="brand-mark">◎</span>
       <span class="brand-name">SOLAR&nbsp;SYSTEM</span>
     </div>
-    <button
-      class="info-btn"
-      :class="{ active: state.infoPanelOpen }"
-      type="button"
-      title="PLANET INFO"
-      aria-label="Toggle planet info panel"
-      @click="togglePanel"
-    >
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
-        <circle cx="12" cy="12" r="9" />
-        <line x1="12" y1="11" x2="12" y2="16.5" />
-        <circle cx="12" cy="7.8" r="0.9" fill="currentColor" stroke="none" />
-      </svg>
-    </button>
+    <div class="actions">
+      <button
+        class="director-btn"
+        :class="{ active: state.directorActive }"
+        type="button"
+        :title="state.directorActive ? 'SKIP TOUR' : 'CINEMATIC TOUR'"
+        aria-label="Toggle cinematic tour"
+        @click="toggleDirector"
+      >
+        {{ state.directorActive ? "SKIP ▶▶" : "CINEMATIC ▶" }}
+      </button>
+      <button
+        class="info-btn"
+        :class="{ active: state.infoPanelOpen }"
+        type="button"
+        title="PLANET INFO"
+        aria-label="Toggle planet info panel"
+        @click="togglePanel"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <circle cx="12" cy="12" r="9" />
+          <line x1="12" y1="11" x2="12" y2="16.5" />
+          <circle cx="12" cy="7.8" r="0.9" fill="currentColor" stroke="none" />
+        </svg>
+      </button>
+    </div>
   </header>
 </template>
 
@@ -86,6 +103,38 @@ function togglePanel() {
   border-color: var(--ink);
   color: #000;
 }
+/* 运镜按钮与 ⓘ 同排布局（flex 自动避让，不再绝对定位叠压） */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.director-btn {
+  pointer-events: auto;
+  height: 38px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-family: "Archivo", sans-serif;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.3s ease, background 0.3s ease;
+}
+.director-btn:hover {
+  color: #fff;
+  border-color: var(--ink);
+}
+.director-btn.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #000;
+}
 @media (max-width: 768px) {
   .top-bar {
     padding: 14px 18px;
@@ -94,9 +143,18 @@ function togglePanel() {
     font-size: 14px;
     letter-spacing: 2px;
   }
+  .actions {
+    gap: 8px;
+  }
   .info-btn {
     width: 34px;
     height: 34px;
+  }
+  .director-btn {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 10px;
+    letter-spacing: 1px;
   }
 }
 </style>

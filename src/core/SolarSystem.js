@@ -317,7 +317,7 @@ export class SolarSystem {
     if (this.sun) this._addSunLabel();
   }
 
-  /** 运镜系统初始化：director 实例 + 右上角入口/跳过按钮 */
+  /** 运镜系统初始化：director 实例；入口/跳过按钮在 TopBar，经 commands 桥接 */
   _initDirector() {
     this.director = new CameraDirector(this.camera, (name, out) => {
       if (name === "sun") return this.sun.getWorldPosition(out);
@@ -326,16 +326,10 @@ export class SolarSystem {
     });
     this.director.onComplete = () => this._endDirector(true);
 
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "director-btn";
-    btn.textContent = "CINEMATIC ▶";
-    btn.addEventListener("click", () => {
+    commands.toggleDirector = () => {
       if (this.directorActive) this._endDirector(false);
       else this._startDirector();
-    });
-    this.container.appendChild(btn);
-    this._directorBtn = btn;
+    };
   }
 
   /** 太阳专属标签：SUN 文字标签 + 金色圆环，随镜头远去渐隐 */
@@ -835,7 +829,7 @@ export class SolarSystem {
     this.controls.enabled = false;
     this._savedFov = this.camera.fov;
     this.director.playTour(TOUR);
-    this._updateDirectorButton();
+    this._syncDirectorState();
   }
 
   /** 结束运镜（completed=true 为自然播完）：恢复相机与交互 */
@@ -854,7 +848,7 @@ export class SolarSystem {
     this.selectedCelestial = null;
     state.selectedBody = null;
     state.infoPanelOpen = false;
-    this._updateDirectorButton();
+    this._syncDirectorState();
     if (completed) {
       // 播完后的运镜终点即全景俯视位：以当前距离重建 cameraOffset，便于继续漫游
       const dist = this.camera.position.length();
@@ -863,12 +857,9 @@ export class SolarSystem {
     }
   }
 
-  /** 运镜入口按钮 / 跳过按钮的双态文案 */
-  _updateDirectorButton() {
-    if (!this._directorBtn) return;
-    this._directorBtn.textContent = this.directorActive
-      ? "SKIP ▶▶"
-      : "CINEMATIC ▶";
+  /** 运镜状态同步给 UI：TopBar 按钮据此切换 CINEMATIC / SKIP 文案与激活态 */
+  _syncDirectorState() {
+    state.directorActive = this.directorActive;
   }
 
   /** 运行帧数 + 镜头速度显示：每 0.5s 统计一次，便于直观定位卡顿 */
@@ -1198,6 +1189,8 @@ export class SolarSystem {
     window.removeEventListener("pointerup", this._onWindowPointerUp);
     window.removeEventListener("keydown", this._onKeyDown);
     this._updateLockIndicator(null);
+    state.directorActive = false;
+    commands.toggleDirector = null;
     this._fpsCounterEl?.remove();
     this.controls?.dispose();
     this.renderer?.dispose();

@@ -19,6 +19,7 @@
 - **视距剔除**：按相机距离自动隐藏远处天体，保证流畅渲染。
 - **宇宙呈现（NASA Eyes 风格）**：真实星表三维星野（HYG 亮星按真实距离分布、按色指数着色）叠加银河系照片面片；持续缩小可见恒星散开、银河盘面渐显，最终太阳系落在 40 kpc 银河图幅上的一个亮点。
 - **任务读数**：右下角实时显示 FPS 与镜头速度（万 km/s），便于定位卡顿。
+- **焦距调节（LENS）**：左下角面板，35mm 全画幅等效 8–600mm 对数滑块（112.6° → 2.3° 视场角）+ `WIDE / NORMAL / TELE` 预设；只改视场角不改机位，属纯光学变焦，行星特写与全景一览自由切换。
 - **响应式交互**：鼠标 + 触屏双模式，适配移动端。
 
 ## 🛰️ 技术栈
@@ -52,12 +53,14 @@
     │   ├── shots.js            # 运镜分镜数据（TOUR：各站环绕弧与转移参数）
     │   ├── starfield.js        # 真实星表三维星野（按真实距离放置与着色）
     │   ├── galaxy.js           # 银河系照片面片（按视距淡入，UV 锚定太阳位置）
-    │   └── bright_stars.json   # 亮星数据（HYG v4.2 子集，517 颗，mag ≤ 4.0）
+    │   └── bright_stars.json   # 亮星数据（HYG v4.2 子集，9933 颗，mag ≤ 6.6）
     ├── components/
     │   ├── SolarScene.vue       # 挂载 SolarSystem 类的画布容器
     │   ├── TopBar.vue           # 顶部品牌栏 + 运镜按钮 + 信息面板开关
     │   ├── SearchBar.vue        # 天体搜索导航
     │   ├── TimeController.vue   # 时间控制滑块
+    │   ├── LensControl.vue      # 相机焦距（LENS）面板
+    │   ├── FpsCounter.vue       # 右下角 FPS / 镜头速度读数
     │   ├── InfoPanel.vue        # 天体科普信息面板
     │   └── LoadingOverlay.vue   # SpaceX 风格加载遮罩
     ├── composables/
@@ -89,8 +92,8 @@ npm run preview
 # 部署到 Cloudflare Pages（build + wrangler pages deploy dist）
 npm run deploy
 
-# （可选）重新生成 webp 纹理：sharp 为按需安装的开发工具，未列入常规依赖
-npm i -D sharp && npm run optimize:textures
+# （可选）重新生成 webp 纹理：sharp 为 devDependency，已随依赖安装
+npm run optimize:textures
 ```
 
 ## 🎮 操作指南
@@ -104,6 +107,7 @@ npm i -D sharp && npm run optimize:textures
 | 查看信息 | 点击后自动展开信息面板 | 同左 |
 | 打开信息面板 | 点击右上角 ⓘ 按钮 | 同左 |
 | 一镜到底运镜 | 点击右上角 `CINEMATIC ▶`（播放中为 `SKIP ▶▶`） | 同左 |
+| 调节焦距 | 展开左下角 `LENS` 面板拖动滑块，或点 `WIDE / NORMAL / TELE` 预设 | 同左 |
 | 解除跟随 | `Esc` 键 / 点徽标 RELEASE | 点徽标 RELEASE |
 
 点击天体后，相机会以 easeInOutCubic 缓动平滑飞行至该天体的安全视距；时长随飞行距离动态伸缩（约 0.7s–3.2s，对数增长），近距离轻快、跨行星从容。悬停在天体上时光标变为手型。

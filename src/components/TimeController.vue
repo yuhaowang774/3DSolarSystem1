@@ -92,12 +92,8 @@ function onSlider(e) {
 </template>
 
 <style scoped>
+/* 定位与层级统一交给 .hud-bottom 容器（宽屏居中、窄屏堆叠），组件本身仅负责外观 */
 .time-ctrl {
-  position: fixed;
-  bottom: 28px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 25;
   width: 380px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.55);
@@ -259,12 +255,11 @@ function onSlider(e) {
 .btn.solid:hover {
   background: #fff;
 }
-@media (max-width: 768px) {
+@media (max-width: 900px) {
+  /* 窄屏：宽度随容器（左右各留 18px），过宽屏面上限 560px 保持可读性 */
   .time-ctrl {
-    left: 18px;
-    right: 18px;
-    width: auto;
-    transform: none;
+    width: 100%;
+    max-width: 560px;
   }
 }
 </style>

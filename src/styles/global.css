@@ -59,6 +59,20 @@ body {
 .celestial-label {
   user-select: none;
 }
+
+/* ---------- 地表标签（经纬网 / 城市 / 空间站） ---------- */
+.surface-label {
+  user-select: none;
+}
+.surface-label .surface-label-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+}
 .celestial-label .planet-name {
   font-family: var(--font);
   letter-spacing: 2px;
@@ -86,12 +100,47 @@ body {
   transform: scale(1.45);
 }
 
-/* ---------- 运行帧数显示 ---------- */
+/* ---------- 底部 HUD（时间控制器 + 帧率/速度读数） ---------- */
+/* 统一容器调度底部两个元素：宽屏读数贴视口右下角，窄屏自动堆叠到时间控制器上方，互不遮挡 */
+.hud-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 28px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+/* 仅时间控制器需要交互，容器其余区域保持穿透以便操作 3D 场景 */
+.hud-bottom .time-ctrl {
+  pointer-events: auto;
+}
+
+/* ---------- 右侧停靠栏（图层控制 / 镜头焦距，顶栏按钮切换） ---------- */
+/* 与信息面板同列且互斥：同一时刻只显示一个，由顶栏 LAYERS / LENS / ⓘ 按钮切换 */
+.right-dock {
+  position: fixed;
+  top: 70px;
+  right: 18px;
+  z-index: 26;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.right-dock > * {
+  pointer-events: auto;
+}
+
+/* ---------- 运行帧数 / 镜头速度显示 ---------- */
+/* 宽屏：贴视口右下角（容器底边位于视口 28px 处，-10px 还原原来 18px 的视觉间距） */
 .fps-counter {
   position: absolute;
   right: 18px;
-  bottom: 18px;
-  z-index: 28;
+  bottom: -10px;
   padding: 6px 12px;
   border: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.55);
@@ -190,5 +239,22 @@ body {
     top: 108px;
     font-size: 10px;
     padding: 6px 6px 6px 12px;
+  }
+}
+
+/* 窄屏底部 HUD 纵向堆叠（900px 起：时间控制器 380px 居中会与右下角读数重叠） */
+@media (max-width: 900px) {
+  .hud-bottom {
+    gap: 10px;
+    padding: 0 18px;
+  }
+  /* 读数改为堆叠在时间控制器上方并靠右，随折叠/展开自适应 */
+  .fps-counter {
+    position: static;
+    align-self: flex-end;
+  }
+  /* 窄屏：停靠栏宽度收缩到视口内 */
+  .right-dock {
+    width: min(250px, calc(100vw - 36px));
   }
 }

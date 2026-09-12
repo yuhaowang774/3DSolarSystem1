@@ -1,10 +1,11 @@
 <script setup>
-import { state, commands } from "../store/useStore.js";
+import { state, commands, toggleRightPanel } from "../store/useStore.js";
 
 // 右上角信息面板开关：从未选中过天体时默认展示太阳
+// （右侧三个面板互斥：信息 / 图层 / 镜头共用同一列）
 function togglePanel() {
   if (!state.selectedBody) state.selectedBody = "sun";
-  state.infoPanelOpen = !state.infoPanelOpen;
+  toggleRightPanel("info");
 }
 
 // 一镜到底运镜：播放 / 跳过命令由 3D 场景注册（commands 桥接）
@@ -31,7 +32,36 @@ function toggleDirector() {
         {{ state.directorActive ? "SKIP ▶▶" : "CINEMATIC ▶" }}
       </button>
       <button
-        class="info-btn"
+        class="icon-btn"
+        :class="{ active: state.layersPanelOpen }"
+        type="button"
+        title="LAYERS"
+        aria-label="Toggle layers panel"
+        @click="toggleRightPanel('layers')"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+          <path d="M12 3 3 7.5l9 4.5 9-4.5L12 3Z" />
+          <path d="M3 12.4 12 16.9l9-4.5" />
+          <path d="M3 16.9 12 21.4l9-4.5" />
+        </svg>
+      </button>
+      <button
+        class="icon-btn"
+        :class="{ active: state.lensPanelOpen }"
+        type="button"
+        title="LENS / FOCAL LENGTH"
+        aria-label="Toggle lens panel"
+        @click="toggleRightPanel('lens')"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="3.4" />
+          <line x1="12" y1="3" x2="12" y2="8.6" />
+          <line x1="12" y1="15.4" x2="12" y2="21" />
+        </svg>
+      </button>
+      <button
+        class="icon-btn"
         :class="{ active: state.infoPanelOpen }"
         type="button"
         title="PLANET INFO"
@@ -79,7 +109,7 @@ function toggleDirector() {
   text-transform: uppercase;
   color: var(--ink);
 }
-.info-btn {
+.icon-btn {
   pointer-events: auto;
   width: 38px;
   height: 38px;
@@ -93,12 +123,12 @@ function toggleDirector() {
   transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease,
     transform 0.3s cubic-bezier(0.19, 1, 0.22, 1);
 }
-.info-btn:hover {
+.icon-btn:hover {
   background: rgba(240, 240, 250, 0.1);
   border-color: var(--ink);
   transform: translateY(-1px);
 }
-.info-btn.active {
+.icon-btn.active {
   background: var(--ink);
   border-color: var(--ink);
   color: #000;
@@ -146,7 +176,7 @@ function toggleDirector() {
   .actions {
     gap: 8px;
   }
-  .info-btn {
+  .icon-btn {
     width: 34px;
     height: 34px;
   }

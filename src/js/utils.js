@@ -1,8 +1,5 @@
 import * as THREE from "three";
 import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
-import { Line2 } from "three/addons/lines/Line2.js";
-import { LineGeometry } from "three/addons/lines/LineGeometry.js";
-import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { planetData } from "./dats.js";
 
 /**
@@ -69,42 +66,60 @@ function getEarthRotationRate() {
 }
 
 /**
- * 计算地球精确自转角度
- * @param {Date} date - 日期对象
- * @returns {number} 地球自转角度（弧度）
+ * 计算地球自转绝对角度（相对当日春分点，弧度）
+ *
+ * 采用 GMST（格林尼治平恒星时）的一阶形式：
+ *   自转角 = 2π × frac(1.00273790935079524 × d)，d = 自 J2000 起的 UT1 日数
+ * 即速率 = 1.00273790935079524 圈/平太阳日（恒星日速率，相对当日春分点）。
+ *
+ * 两个要点：
+ * ① 必须包含「整天数」：若只用「当天时刻」这类周期量，模拟时间每远离初始时刻一天，
+ *    日下点经度就漂移约 1°（昼夜分界线整体错位）。
+ * ② 速率须与岁差处理保持一致：本模型的自转轴随岁差一同转动（见 calculateEarthAxisAzimuth），
+ *    故取相对春分点的 GMST 速率。若取相对 CIO 的 ERA 速率（1.00273781191135448 圈/日），
+ *    两者相差的岁差在赤经中的累积会使日下点经度漂移约 0.0128°/年
+ *    （实测 2026 → 2111 漂移 1.09°；改用 GMST 速率后为 0.007°）。
+ *
+ * 实测（对照 calculateTrueSubsolarLongitude）：2026 / 2040 / 2111 / 2400 年
+ * 日下点经度偏差均 < 0.01°。角度常数项与纹理本初子午线的对齐由
+ * 「日下点差量校准法」在初始化时一并测定，无需在此体现。
+ *
+ * @param {Date} date - 日期对象（UTC，此处以 UTC 近似 UT1，差异 < 0.9 s ≈ 0.004°）
+ * @returns {number} 地球自转角度（弧度，[0, 2π)）
  */
 function calculateEarthRotation(date) {
   try {
-    // 获取UTC时间组件
-    const year = date.getUTCFullYear();
-    const month = date.getUTCMonth() + 1; // 0-11 to 1-12
-    const day = date.getUTCDate();
-    const hours = date.getUTCHours();
-    const minutes = date.getUTCMinutes();
-    const seconds = date.getUTCSeconds() + date.getUTCMilliseconds() / 1000;
-
-    // 计算日期在年内的天数
-    const dayOfYear =
-      Math.floor((date - new Date(Date.UTC(year, 0, 1))) / 86400000) + 1;
-
-    // 计算平太阳时角（小时）
-    // 基于简化的公式：GMT + 经度 + 季节性调整
-    const gmtHours = hours + minutes / 60 + seconds / 3600;
-    const seasonalAdjustment =
-      2.466 * Math.sin(degToRad((360 * (dayOfYear - 81)) / 365)) -
-      1.26 * Math.sin(degToRad((720 * (dayOfYear - 81)) / 365));
-
-    // 计算总小时数，考虑地球自转不均匀性
-    const totalHours = gmtHours + seasonalAdjustment / 60;
-
-    // 将小时转换为弧度（2π rad = 24小时）
-    const rotationAngle = degToRad(totalHours * 15); // 15度/小时
-
-    return rotationAngle;
+    const daysSinceJ2000 = julianDate(date) - 2451545.0;
+    // 相对「当日春分点」的恒星日速率：1.00273790935079524 圈/平太阳日（即 GMST 速率）。
+    // 本模型的黄极与自转轴随岁差一同转动（见 calculateEarthAxisAzimuth），
+    // 因此自转角必须与春分点同步取 GMST 速率；若取 ERA 速率（相对 CIO，1.00273781191135448），
+    // 二者相差的岁差在赤经中的累积会让日下点经度以约 0.0128°/年漂移。
+    let turns = (1.00273790935079524 * daysSinceJ2000) % 1;
+    if (turns < 0) turns += 1;
+    return turns * 2 * Math.PI;
   } catch (error) {
     console.error("计算地球自转角度错误:", error);
     return 0;
   }
+}
+
+/**
+ * 地球自转轴的倾向方位角（场景系中绕 +Y 的方位，弧度）
+ *
+ * 北天极在黄道面内的投影指向「夏至点」（黄经 90°）。在 J2000 惯性框架下，
+ * 黄道坐标系本身相对 J2000 存在长期岁差：春分点沿黄道西退
+ *   p(T) ≈ 5029.0966″·T + 1.11113″·T²  （T 为自 J2000 起的儒略世纪数，TT）
+ * 因此北天极的方位角 = 180° − p。
+ * （黄道系 → 场景系为 (x, z, -y)：黄经 90° 对应场景 −Z，即方位角 180°；
+ *   忽略该岁差会让二分二至时刻偏差约 0.36°/世纪·T，例如 2026 年春分晚约 9 小时。）
+ *
+ * @param {Date} date - UTC 日期
+ * @returns {number} 方位角（弧度）
+ */
+function calculateEarthAxisAzimuth(date) {
+  const T = centuriesSinceJ2000(julianDateTT(date));
+  const precessionDeg = (5029.0966 * T + 1.11113 * T * T) / 3600;
+  return Math.PI - (precessionDeg * Math.PI) / 180;
 }
 
 /**
@@ -335,22 +350,23 @@ function calculateOrbitPosition(
     const sinI = Math.sin(I);
     const cosI = Math.cos(I);
 
-    // 坐标转换（轨道平面 -> 天球赤道面）
-    const relX = r * (sinNode * cosVW + cosNode * sinVW * cosI);
-    const relY = r * sinVW * sinI;
-    const relZ = r * (cosNode * cosVW - sinNode * sinVW * cosI);
+    // 坐标转换（轨道平面 -> J2000 黄道坐标系：x 指向春分点，z 指向北黄极）
+    const xEcl = r * (cosNode * cosVW - sinNode * sinVW * cosI);
+    const yEcl = r * (sinNode * cosVW + cosNode * sinVW * cosI);
+    const zEcl = r * sinVW * sinI;
 
     // 验证结果有效性
-    if (isNaN(relX) || isNaN(relY) || isNaN(relZ)) {
-      console.error("轨道计算结果无效", { relX, relY, relZ });
+    if (isNaN(xEcl) || isNaN(yEcl) || isNaN(zEcl)) {
+      console.error("轨道计算结果无效", { xEcl, yEcl, zEcl });
       return new THREE.Vector3(centralPos.x, centralPos.y, centralPos.z);
     }
 
-    // 返回相对中心天体的位置
+    // 黄道系 → 场景系（与星野 / 银河照片面片同一约定）：(x, y, z) → (x, z, -y)
+    // 即 +Y = 北黄极，XZ 平面 = 黄道面，+X = 春分点方向
     return new THREE.Vector3(
-      centralPos.x + relX,
-      centralPos.y + relY,
-      centralPos.z + relZ
+      centralPos.x + xEcl,
+      centralPos.y + zEcl,
+      centralPos.z - yEcl
     );
   } catch (error) {
     console.error("轨道位置计算错误:", error);
@@ -414,11 +430,168 @@ function softOrbitColor(colorLike) {
   return c;
 }
 
+/* ============ 轨道线：连续绸带（屏幕像素线宽 + 斜接拐角 + 解析式抗锯齿） ============
+ * 为什么不用 Line2：Line2 把折线拆成一段段各自独立的四边形（每段两端还会各外扩
+ * 半个线宽），当某段投影后只有一两像素长时（拉远后的外行星轨道），段间重叠与
+ * 接缝被放大成一串"珠子"。改为整条轨道共享站点的连续三角带后：
+ *   - 每个采样点只贡献一条"站"（左右两个顶点，由 aSide 区分）；
+ *   - 法线取相邻两段方向的角平分线（miter）+ 长度补偿，拐角内外侧宽度一致；
+ *   - 线宽在屏幕空间恒定（像素定义），边缘用 smoothstep 羽化，任何缩放级别都平滑。
+ */
+
+const ORBIT_LINE_WIDTH = 2.0; // 轨道线宽（屏幕像素）
+
+const ORBIT_VERT = /* glsl */ `
+  uniform vec2 uResolution;   // 画布尺寸（像素）
+  uniform float uLineWidth;   // 线宽（像素）
+
+  attribute vec3 aPrev;       // 相邻采样点（与 position 同步更新的轨道坐标）
+  attribute vec3 aNext;
+  attribute float aSide;      // -1 / +1：绸带两侧
+
+  varying float vSide;
+
+  #include <common>
+  #include <logdepthbuf_pars_vertex>
+
+  void main() {
+    vSide = aSide;
+
+    vec4 mvCur = modelViewMatrix * vec4(position, 1.0);
+    vec4 mvPrev = modelViewMatrix * vec4(aPrev, 1.0);
+    vec4 mvNext = modelViewMatrix * vec4(aNext, 1.0);
+
+    vec4 clipCur = projectionMatrix * mvCur;
+    vec4 clipPrev = projectionMatrix * mvPrev;
+    vec4 clipNext = projectionMatrix * mvNext;
+
+    float aspect = uResolution.x / uResolution.y;
+
+    // 屏幕空间方向：x 乘 aspect 换成等比空间，避免非正方形视口下法线歪斜
+    vec2 ndcCur = clipCur.xy / max(clipCur.w, 1e-6);
+    vec2 ndcPrev = clipPrev.xy / max(clipPrev.w, 1e-6);
+    vec2 ndcNext = clipNext.xy / max(clipNext.w, 1e-6);
+
+    vec2 dirPrev = ndcCur - ndcPrev;
+    vec2 dirNext = ndcNext - ndcCur;
+    dirPrev.x *= aspect;
+    dirNext.x *= aspect;
+
+    // 相机平面之后 / 投影重合的相邻点方向会翻折，用另一侧方向兜底，避免可见处炸出长刺
+    bool okPrev = clipPrev.w > 0.0 && dot(dirPrev, dirPrev) > 1e-14;
+    bool okNext = clipNext.w > 0.0 && dot(dirNext, dirNext) > 1e-14;
+    if (!okPrev && !okNext) {
+      dirPrev = vec2(1.0, 0.0);
+      dirNext = vec2(1.0, 0.0);
+    } else if (!okPrev) {
+      dirPrev = normalize(dirNext);
+    } else if (!okNext) {
+      dirNext = normalize(dirPrev);
+    } else {
+      dirPrev = normalize(dirPrev);
+      dirNext = normalize(dirNext);
+    }
+
+    // miter：相邻两段法线的角平分线，长度补偿 1/cos(θ/2) 并钳制以避免尖角过长
+    vec2 nPrev = vec2(-dirPrev.y, dirPrev.x);
+    vec2 nNext = vec2(-dirNext.y, dirNext.x);
+    vec2 miter = nPrev + nNext;
+    miter = dot(miter, miter) < 1e-12 ? nNext : normalize(miter);
+    float miterScale = 1.0 / max(dot(miter, nNext), 0.35);
+
+    // 半线宽（像素）→ 等比屏幕空间 → NDC（还原 aspect）→ 裁剪空间
+    vec2 offsetS = miter * miterScale * (uLineWidth * 0.5) * (2.0 / uResolution.y);
+    vec2 offsetNdc = vec2(offsetS.x / aspect, offsetS.y);
+    clipCur.xy += offsetNdc * clipCur.w * aSide;
+
+    gl_Position = clipCur;
+
+    #include <logdepthbuf_vertex>
+  }
+`;
+
+const ORBIT_FRAG = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  uniform float uLineWidth;
+
+  varying float vSide;
+
+  #include <logdepthbuf_pars_fragment>
+
+  void main() {
+    #include <logdepthbuf_fragment>
+
+    // 解析式抗锯齿：vSide 沿整条线宽从 -1 线性过渡到 1，屏幕导数恒为 2 / 线宽，
+    // 据此取约 0.5 像素的羽化带，边缘平滑且不依赖 MSAA
+    float aa = 1.0 / max(uLineWidth, 0.5);
+    float alpha = 1.0 - smoothstep(1.0 - aa, 1.0, abs(vSide));
+    if (alpha <= 0.002) discard;
+
+    gl_FragColor = vec4(uColor, uOpacity * alpha);
+
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
 /**
- * 创建轨道线
+ * 生成轨道绸带几何体（闭合折线 → 连续三角带）
+ * 站数 = 采样点数 + 1（末站复制首站，闭合接缝）；每站两个顶点由 aSide 区分
+ * @param {THREE.Vector3[]} points - 闭合折线采样点（不含重复首点）
+ * @returns {THREE.BufferGeometry} 含 position / aPrev / aNext / aSide 的几何体
+ */
+function createOrbitGeometry(points) {
+  const n = points.length;
+  const stations = n + 1;
+  const vertexCount = stations * 2;
+
+  const position = new Float32Array(vertexCount * 3);
+  const aPrev = new Float32Array(vertexCount * 3);
+  const aNext = new Float32Array(vertexCount * 3);
+  const aSide = new Float32Array(vertexCount);
+  const index = [];
+
+  const write = (arr, vertex, p) => {
+    const o = vertex * 3;
+    arr[o] = p.x;
+    arr[o + 1] = p.y;
+    arr[o + 2] = p.z;
+  };
+
+  for (let i = 0; i < stations; i++) {
+    const c = points[i % n];
+    const p = points[(i - 1 + n) % n];
+    const q = points[(i + 1) % n];
+    write(position, i * 2, c);
+    write(position, i * 2 + 1, c);
+    write(aPrev, i * 2, p);
+    write(aPrev, i * 2 + 1, p);
+    write(aNext, i * 2, q);
+    write(aNext, i * 2 + 1, q);
+    aSide[i * 2] = -1;
+    aSide[i * 2 + 1] = 1;
+    if (i < stations - 1) {
+      const v = i * 2;
+      index.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(position, 3));
+  geometry.setAttribute("aPrev", new THREE.BufferAttribute(aPrev, 3));
+  geometry.setAttribute("aNext", new THREE.BufferAttribute(aNext, 3));
+  geometry.setAttribute("aSide", new THREE.BufferAttribute(aSide, 1));
+  geometry.setIndex(index);
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/**
+ * 创建轨道线（连续绸带：屏幕像素线宽，任何缩放级别都不会出现分段斑点）
  * @param {string} str - 天体名称
  * @param {Date} [date=new Date()] - 用于计算轨道参数的时间，默认为当前时间
- * @returns {THREE.LineLoop} 轨道线对象
+ * @returns {THREE.Mesh} 轨道线对象
  */
 function createOrbit(str, date = new Date()) {
   const data = planetData[str];
@@ -426,12 +599,12 @@ function createOrbit(str, date = new Date()) {
 
   const points = [];
   const isSatellite = !!data.centralPlanet;
-  const pointCount = isSatellite ? 256 : 1024; // 卫星轨道点数较少，行星轨道1024点足够平滑
+  const pointCount = isSatellite ? 512 : 1024; // 卫星轨道点数较少，行星轨道1024点足够平滑
 
   // 计算轨道参数 - 使用传入的时间来计算长期变化（TT 引数）
   const JD = julianDateTT(date);
   const T = centuriesSinceJ2000(JD);
-  let a = (data.a[0] + data.a[1] * T) * planetData.common.AU;
+  const a = (data.a[0] + data.a[1] * T) * planetData.common.AU;
   const e = data.e[0] + data.e[1] * T;
   const I = degreesToRadians(data.I[0] + data.I[1] * T);
   const longPeri = degreesToRadians(data.longPeri[0] + data.longPeri[1] * T);
@@ -441,48 +614,45 @@ function createOrbit(str, date = new Date()) {
   // 存储原始角度值，用于增量更新
   const angles = [];
 
-  // 按角度均匀采样生成轨道点
+  // 按角度均匀采样生成轨道点（坐标转换与 calculateOrbitPosition 一致）
   for (let i = 0; i < pointCount; i++) {
-    const angle = (2 * Math.PI * i) / pointCount;
-    angles.push(angle);
-    const v = angle;
+    const v = (2 * Math.PI * i) / pointCount;
+    angles.push(v);
     const r = (a * (1 - e * e)) / (1 + e * Math.cos(v));
-
-    // 计算坐标 - 使用与calculateOrbitPosition相同的坐标转换逻辑
-    const relX =
-      r *
-      (Math.sin(longNode) * Math.cos(v + w) +
-        Math.cos(longNode) * Math.sin(v + w) * Math.cos(I));
-    const relY = r * Math.sin(v + w) * Math.sin(I);
-    const relZ =
+    // 黄道坐标（x 指向春分点，z 指向北黄极）
+    const xEcl =
       r *
       (Math.cos(longNode) * Math.cos(v + w) -
         Math.sin(longNode) * Math.sin(v + w) * Math.cos(I));
-
-    points.push(new THREE.Vector3(relX, relY, relZ));
+    const yEcl =
+      r *
+      (Math.sin(longNode) * Math.cos(v + w) +
+        Math.cos(longNode) * Math.sin(v + w) * Math.cos(I));
+    const zEcl = r * Math.sin(v + w) * Math.sin(I);
+    // 黄道系 → 场景系：(x, y, z) → (x, z, -y)（与星野约定一致）
+    points.push(new THREE.Vector3(xEcl, zEcl, -yEcl));
   }
 
-  // 创建基础材质和几何体
-  // 用 Line2/LineMaterial 实现真正的像素级线宽（LineBasicMaterial 的 linewidth 在 WebGL 中固定为 1px）
-  // Line2 是折线而非闭环：末尾追加首点形成闭合
-  points.push(points[0].clone());
-  const flat = new Float32Array(points.length * 3);
-  points.forEach((p, i) => {
-    flat[i * 3] = p.x;
-    flat[i * 3 + 1] = p.y;
-    flat[i * 3 + 2] = p.z;
-  });
-  const geometry = new LineGeometry();
-  geometry.setPositions(Array.from(flat));
-  const material = new LineMaterial({
-    color: softOrbitColor(data.orbitColor || data.color),
+  const geometry = createOrbitGeometry(points);
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: softOrbitColor(data.orbitColor || data.color) },
+      uOpacity: { value: 0.45 },
+      uLineWidth: { value: ORBIT_LINE_WIDTH },
+      uResolution: { value: new THREE.Vector2(1, 1) }, // 由场景在初始化 / resize 时同步
+    },
+    vertexShader: ORBIT_VERT,
+    fragmentShader: ORBIT_FRAG,
     transparent: true,
-    opacity: 0.45,
-    linewidth: 2.0, // 屏幕像素单位
-    worldUnits: false,
+    depthWrite: false, // 透明线不写深度：避免给其它透明元素"打洞"或被其反噬
+    side: THREE.DoubleSide,
   });
 
-  const orbitLine = new Line2(geometry, material);
+  const orbitLine = new THREE.Mesh(geometry, material);
+  orbitLine.name = `orbit-${str}`;
+  // 在透明队列中最后绘制：银河 / 星野 / 太阳光晕 / 行星球环 / 大气等叠加层
+  // 不再把轨迹线冲淡；实心天体仍按深度正常遮挡轨迹线
+  orbitLine.renderOrder = 2;
 
   // 存储更多轨道参数信息，便于后续增量更新
   orbitLine._orbitData = {
@@ -498,8 +668,13 @@ function createOrbit(str, date = new Date()) {
 }
 
 /**
- * 增量更新轨道顶点位置
- * @param {THREE.LineLoop} orbitLine - 轨道线对象
+ * 增量更新轨道绸带顶点位置
+ *
+ * 几何体为「站 × 2 顶点」的连续三角带：
+ *   站 i 的中心点 = 采样点 (i % n)；aPrev = 采样点 ((i-1+n) % n)；aNext = 采样点 ((i+1) % n)
+ * 末站（i = n）复制首站数据，闭合接缝。三个属性同步重写即可改变轨道形状。
+ *
+ * @param {THREE.Mesh} orbitLine - 轨道线对象
  * @param {Date} date - 新的时间点
  * @returns {boolean} 更新是否成功
  */
@@ -513,82 +688,64 @@ function updateOrbitVertices(orbitLine, date) {
 
     const data = orbitData.data;
     const angles = orbitData.angles;
+    const n = angles.length;
 
     // 计算新的轨道参数（TT 引数）
     const JD = julianDateTT(date);
     const T = centuriesSinceJ2000(JD);
-    let a = (data.a[0] + data.a[1] * T) * planetData.common.AU;
+    const a = (data.a[0] + data.a[1] * T) * planetData.common.AU;
     const e = data.e[0] + data.e[1] * T;
     const I = degreesToRadians(data.I[0] + data.I[1] * T);
     const longPeri = degreesToRadians(data.longPeri[0] + data.longPeri[1] * T);
     const longNode = degreesToRadians(data.longNode[0] + data.longNode[1] * T);
     const w = longPeri - longNode;
+    const sinNode = Math.sin(longNode);
+    const cosNode = Math.cos(longNode);
+    const sinI = Math.sin(I);
+    const cosI = Math.cos(I);
+    const p = a * (1 - e * e);
 
-    // 获取几何体的顶点数据
-    // Line2 的 position 是 InterleavedBufferAttribute（instanceStart，stride=6，offset=0；
-    // 每段线段的终点 instanceEnd 位于 offset=3），写入需按交错布局进行
-    const positionAttribute = orbitLine.geometry.getAttribute("position");
-    const positions = positionAttribute.array;
-    const isInterleaved = !!positionAttribute.isInterleavedBufferAttribute;
-    const stride = isInterleaved ? positionAttribute.data.stride : 3;
-    const offset = isInterleaved ? positionAttribute.offset : 0;
+    const geometry = orbitLine.geometry;
+    const positionAttr = geometry.getAttribute("position");
+    const prevAttr = geometry.getAttribute("aPrev");
+    const nextAttr = geometry.getAttribute("aNext");
+    if (!positionAttr || !prevAttr || !nextAttr) return false;
 
-    /** 写入第 idx 个顶点：同时更新对应线段的起点与本段终点 */
-    const writeVertex = (idx, x, y, z) => {
-      positions[idx * stride + offset] = x;
-      positions[idx * stride + offset + 1] = y;
-      positions[idx * stride + offset + 2] = z;
-      if (idx > 0) {
-        // 上一段线段的终点即本点
-        positions[(idx - 1) * stride + offset + 3] = x;
-        positions[(idx - 1) * stride + offset + 3 + 1] = y;
-        positions[(idx - 1) * stride + offset + 3 + 2] = z;
-      }
+    const posArr = positionAttr.array;
+    const prevArr = prevAttr.array;
+    const nextArr = nextAttr.array;
+    const stations = Math.min(n + 1, Math.floor(posArr.length / 6));
+
+    /** 采样点 v → 坐标写入指定顶点 */
+    const writeVertex = (arr, vertex, v) => {
+      const r = p / (1 + e * Math.cos(v));
+      const s = v + w;
+      const o = vertex * 3;
+      // 黄道坐标（x 指向春分点，z 指向北黄极）→ 场景系 (x, z, -y)
+      const xEcl = r * (cosNode * Math.cos(s) - sinNode * Math.sin(s) * cosI);
+      const yEcl = r * (sinNode * Math.cos(s) + cosNode * Math.sin(s) * cosI);
+      const zEcl = r * Math.sin(s) * sinI;
+      arr[o] = xEcl;
+      arr[o + 1] = zEcl;
+      arr[o + 2] = -yEcl;
     };
 
-    // 增量更新每个顶点的位置
-    let firstX = 0, firstY = 0, firstZ = 0;
-    for (let i = 0; i < angles.length; i++) {
-      const angle = angles[i];
-      const v = angle;
-      const r = (a * (1 - e * e)) / (1 + e * Math.cos(v));
-
-      // 计算新坐标
-      const relX =
-        r *
-        (Math.sin(longNode) * Math.cos(v + w) +
-          Math.cos(longNode) * Math.sin(v + w) * Math.cos(I));
-      const relY = r * Math.sin(v + w) * Math.sin(I);
-      const relZ =
-        r *
-        (Math.cos(longNode) * Math.cos(v + w) -
-          Math.sin(longNode) * Math.sin(v + w) * Math.cos(I));
-
-      writeVertex(i, relX, relY, relZ);
-      if (i === 0) {
-        firstX = relX;
-        firstY = relY;
-        firstZ = relZ;
-      }
+    for (let i = 0; i < stations; i++) {
+      const vc = angles[i % n];
+      const vp = angles[(i - 1 + n) % n];
+      const vq = angles[(i + 1) % n];
+      writeVertex(posArr, i * 2, vc);
+      writeVertex(posArr, i * 2 + 1, vc);
+      writeVertex(prevArr, i * 2, vp);
+      writeVertex(prevArr, i * 2 + 1, vp);
+      writeVertex(nextArr, i * 2, vq);
+      writeVertex(nextArr, i * 2 + 1, vq);
     }
 
-    // Line2 为折线：同步末尾的闭合点（= 首点）
-    if (isInterleaved) {
-      const n = angles.length;
-      writeVertex(n, firstX, firstY, firstZ);
-      // 最后一段线段的终点也是闭合点
-      positions[(n - 1) * stride + offset + 3] = firstX;
-      positions[(n - 1) * stride + offset + 3 + 1] = firstY;
-      positions[(n - 1) * stride + offset + 3 + 2] = firstZ;
-    }
-
-    // 通知Three.js几何体已更新
-    if (isInterleaved) {
-      positionAttribute.data.needsUpdate = true;
-    } else {
-      positionAttribute.needsUpdate = true;
-    }
-    orbitLine.geometry.computeBoundingSphere();
+    positionAttr.needsUpdate = true;
+    prevAttr.needsUpdate = true;
+    nextAttr.needsUpdate = true;
+    geometry.computeBoundingSphere();
 
     // 更新时间戳
     orbitData.lastUpdateDate = new Date(date.getTime());
@@ -661,18 +818,68 @@ function createSun(name, radius, manager) {
 }
 
 /**
+ * 不规则小天体几何：三轴椭球基形 + 确定性低频起伏。
+ * 火卫一（27×22×18 km）/ 火卫二（15×12.2×11 km）等小卫星并非圆球，
+ * 用「平均半径 × 三轴比」的椭球叠加噪声起伏近似其土豆形外形。
+ * UV 沿用球体展开，等距圆柱投影贴图不受形变影响；顶点位移只与方向有关，
+ * 经线接缝与极点的重合顶点位移一致，曲面保持闭合。
+ * @param {number} radius - 平均半径（场景单位）
+ * @param {{axis:number[], seed?:number, lumps?:number}} shape - 三轴比与起伏参数
+ * @returns {THREE.SphereGeometry}
+ */
+function createIrregularMoonGeometry(radius, shape) {
+  const mean = (shape.axis[0] + shape.axis[1] + shape.axis[2]) / 3;
+  const [ax, ay, az] = shape.axis.map((a) => a / mean);
+  const seed = shape.seed ?? 1;
+  const lumps = shape.lumps ?? 0.06;
+  const geometry = new THREE.SphereGeometry(radius, 64, 48);
+  const position = geometry.attributes.position;
+  const v = new THREE.Vector3();
+  // 确定性伪噪声：三组不同频率的三角函数按 seed 错相叠加，输出约 ±1
+  const noise = (x, y, z) =>
+    Math.sin(x * 2.3 + seed * 1.9 + y * 1.1) * 0.5 +
+    Math.sin(y * 3.7 + seed * 2.7 + z * 2.3) * 0.3 +
+    Math.sin(z * 5.1 + seed * 3.7 + x * 1.7) * 0.2;
+  for (let i = 0; i < position.count; i++) {
+    v.fromBufferAttribute(position, i).normalize();
+    // 该方向上到椭球面的距离（椭球半轴 = 平均半径 × 归一化三轴比）
+    const ellipsoid =
+      1 / Math.sqrt((v.x / ax) ** 2 + (v.y / ay) ** 2 + (v.z / az) ** 2);
+    const bump = 1 + lumps * noise(v.x * 2.9, v.y * 2.9, v.z * 2.9);
+    const r = radius * ellipsoid * bump;
+    position.setXYZ(i, v.x * r, v.y * r, v.z * r);
+  }
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/**
  * 创建行星/卫星
  * @param {string} name - 名称
  * @param {number} radius - 半径
+ * @param {THREE.LoadingManager} manager - 纹理加载管理器
+ * @param {string} [textureFile] - 贴图文件名（默认 `<name>.webp`；卫星用 `<name>.jpg`）
+ * @param {{axis:number[], seed?:number, lumps?:number}} [shape] - 不规则外形参数（小卫星用）
+ * @param {number} [mapShift] - 源图经度约定修正：源图 0° 在左缘时传 -0.5，
+ *   使特征地貌落在场景约定的真实经度上（球面 u=0.5 ↔ 0° 经线，东经向右）
  * @returns {THREE.Mesh} 行星网格对象
  */
-function createPlanet(name, radius, manager) {
+function createPlanet(name, radius, manager, textureFile, shape, mapShift) {
   const textureLoader = new THREE.TextureLoader(manager);
-  const texture = textureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.webp`);
+  const texture = textureLoader.load(
+    `${import.meta.env.BASE_URL}assets/${textureFile || `${name}.webp`}`
+  );
   texture.colorSpace = THREE.SRGBColorSpace;
+  if (mapShift) {
+    // 平移采样列对齐经度约定（包裹采样避免缝隙）
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.offset.x = mapShift;
+  }
   const material = new THREE.MeshPhongMaterial({ map: texture });
-  const segments = getSphereSegments(radius);
-  const geometry = new THREE.SphereGeometry(radius, segments, segments);
+  const geometry = shape
+    ? createIrregularMoonGeometry(radius, shape)
+    : new THREE.SphereGeometry(radius, getSphereSegments(radius), getSphereSegments(radius));
   const planet = new THREE.Mesh(geometry, material);
   planet.name = name;
   planet.castShadow = true;
@@ -874,13 +1081,85 @@ function createUniverse(name, radius, manager) {
 }
 
 /**
+ * ===================== IAU 行星自转模型（J2000） =====================
+ *
+ * 各行星北极方向（赤经 α₀ / 赤纬 δ₀）与自转经度 W = W₀ + dW·d
+ * （d 为距 J2000 的 TT 天数）。数据来源 IAU/WGCCRE 2009 报告（现行值）。
+ * 用于把行星组姿态对准真实极向——土星环指向、天王星"躺倒"、火星极冠
+ * 方位等与 NASA Eyes 的当前显示一致；自转经度决定某一时刻哪条经线朝向太阳。
+ */
+const IAU_ROTATION = {
+  mercury: { alpha: 281.01, delta: 61.45, w0: 329.548, dw: 6.1385025 },
+  venus: { alpha: 272.76, delta: 67.16, w0: 160.2, dw: -1.4813688 },
+  mars: { alpha: 317.681, delta: 52.887, w0: 176.63, dw: 350.89198226 },
+  jupiter: { alpha: 268.057, delta: 64.496, w0: 284.95, dw: 870.536 },
+  saturn: { alpha: 40.589, delta: 83.537, w0: 38.9, dw: 810.7939024 },
+  uranus: { alpha: 257.311, delta: -15.175, w0: 203.81, dw: -501.1600928 },
+  neptune: { alpha: 299.36, delta: 43.46, w0: 253.18, dw: 536.3128492 },
+};
+
+/** 黄赤交角（J2000，弧度） */
+const OBLIQUITY_J2000 = 23.4393 * (Math.PI / 180);
+
+/**
+ * IAU 赤道坐标系单位向量 → 场景坐标系。
+ * 赤道 (α,δ) → 黄道（绕 x 轴 -ε）→ 场景 (x, z, -y)，与轨道计算同一映射
+ * （场景 +Y = 北黄极，+X = 春分点，见 calculateOrbitPosition）
+ */
+function equatorialToScene(alphaDeg, deltaDeg, target = new THREE.Vector3()) {
+  const a = degreesToRadians(alphaDeg);
+  const d = degreesToRadians(deltaDeg);
+  const x = Math.cos(d) * Math.cos(a);
+  const y = Math.cos(d) * Math.sin(a);
+  const z = Math.sin(d);
+  const yEcl = y * Math.cos(OBLIQUITY_J2000) + z * Math.sin(OBLIQUITY_J2000);
+  const zEcl = z * Math.cos(OBLIQUITY_J2000) - y * Math.sin(OBLIQUITY_J2000);
+  return target.set(x, zEcl, -yEcl);
+}
+
+/**
+ * 行星组姿态四元数：本地 +Y = IAU 北极，本地 +X = 行星赤道对地球赤道的升交点。
+ * 光环 / 卫星轨道作为组的子节点随真实赤道面倾斜（土星环指向与 NASA Eyes 一致）
+ * @param {string} name - 行星名（IAU_ROTATION 内的天体）
+ * @returns {THREE.Quaternion|null}
+ */
+function iauGroupQuaternion(name) {
+  const iau = IAU_ROTATION[name];
+  if (!iau) return null;
+  const pole = equatorialToScene(iau.alpha, iau.delta);
+  const node = equatorialToScene(iau.alpha + 90, 0); // 行星赤道升交点方向
+  const zAxis = new THREE.Vector3().crossVectors(node, pole).normalize();
+  const matrix = new THREE.Matrix4().makeBasis(node, pole, zAxis);
+  return new THREE.Quaternion().setFromRotationMatrix(matrix);
+}
+
+/**
+ * IAU 自转经度 W(t)（弧度）：t 时刻面向的经线角度，驱动行星贴图的真实自转相位
+ * @param {string} name - 行星名
+ * @param {Date} date - 模拟时间
+ * @returns {number} 弧度；无 IAU 数据的天体返回 0
+ */
+function iauSpinY(name, date) {
+  const iau = IAU_ROTATION[name];
+  if (!iau) return 0;
+  const d = julianDateTT(date) - 2451545.0;
+  const w = (((iau.w0 + iau.dw * d) % 360) + 360) % 360;
+  return degreesToRadians(w);
+}
+
+/**
  * 创建行星环
+ * 环面按「片段 → 太阳」光线与行星球体求交计算本影：被行星遮挡的环面
+ * 呈楔形阴影（土星环的经典逆光形态，参见 NASA Eyes）。
+ * 太阳位置每帧由场景写入环本地系（uSunLocal），行星中心即本地原点。
  * @param {string} name - 名称
  * @param {number} innerRadius - 内环半径
  * @param {number} outerRadius - 外环半径
+ * @param {THREE.LoadingManager} manager - 纹理加载管理器
+ * @param {number} planetRadius - 行星半径（本影计算用，场景单位）
  * @returns {THREE.Mesh} 行星环网格对象
  */
-function createRing(name, innerRadius, outerRadius, manager) {
+function createRing(name, innerRadius, outerRadius, manager, planetRadius = 0) {
   const ringTextureLoader = new THREE.TextureLoader(manager);
   const ringTexture = ringTextureLoader.load(`${import.meta.env.BASE_URL}assets/${name}.webp`);
 
@@ -897,19 +1176,124 @@ function createRing(name, innerRadius, outerRadius, manager) {
     ringGeometry.attributes.uv.setXY(i, v3.length() < center ? 0 : 1, 1);
   }
 
-  // 创建材质
-  const ringMaterial = new THREE.MeshStandardMaterial({
-    map: ringTexture,
+  // 环面着色器：贴图 × 行星本影（解析球体求交，替代阴影贴图——
+  // 点光源立方体阴影在数万单位的场景尺度下不可用，见 _initLights 注释）
+  // alphaTest 语义保留：全透明区域直接丢弃，避免写深度挡住身后轨迹线
+  const ringMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: ringTexture },
+      // 太阳在环本地坐标系中的位置（场景每帧更新）
+      uSunLocal: { value: new THREE.Vector3(0, 0, 1) },
+      uPlanetRadius: { value: planetRadius },
+    },
     side: THREE.DoubleSide,
     transparent: true,
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vLocalPos;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main() {
+        vUv = uv;
+        vLocalPos = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        #include <logdepthbuf_vertex>
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D map;
+      uniform vec3 uSunLocal;
+      uniform float uPlanetRadius;
+      varying vec2 vUv;
+      varying vec3 vLocalPos;
+      #include <common>
+      #include <logdepthbuf_pars_fragment>
+      void main() {
+        #include <logdepthbuf_fragment>
+        vec4 tex = texture2D(map, vUv);
+        if (tex.a < 0.05) discard;
+        // 本影：片段到太阳的光线与行星球（本地原点）的最短距离小于半径即被遮挡
+        vec3 ringRd = normalize(uSunLocal - vLocalPos);
+        vec3 ringOc = -vLocalPos;
+        float ringT = dot(ringOc, ringRd);
+        float ringD = length(ringOc - ringRd * max(ringT, 0.0));
+        float shadow = 1.0 -
+          (1.0 - smoothstep(uPlanetRadius * 0.97, uPlanetRadius * 1.03, ringD)) * step(0.0, ringT);
+        gl_FragColor = vec4(tex.rgb * mix(0.08, 1.0, shadow), tex.a);
+        #include <colorspace_fragment>
+      }
+    `,
   });
 
   const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-  ring.castShadow = true;
-  ring.receiveShadow = true;
   ring.rotation.x = Math.PI / 2; // 水平放置
+  // 场景每帧把太阳位置写入该 uniform（见 SolarSystem._updateRingShadows）
+  ring.userData.sunUniform = ringMaterial.uniforms.uSunLocal;
 
   return ring;
+}
+
+/**
+ * 把「环影」注入行星材质：行星盘面上，射向太阳的光线若先穿过环面
+ * （环平面内、内外半径之间）则直射光被削弱——土星盘面上的暗色环带。
+ * 通过 onBeforeCompile 注入 Phong 光照末端，环境光不受影响。
+ * @param {THREE.MeshPhongMaterial} material - 行星材质
+ * @returns {Object} uniforms（场景每帧更新太阳/行星/环面法线的世界姿态）
+ */
+function applyRingShadowToPlanet(material) {
+  const uniforms = {
+    uSunWorld: { value: new THREE.Vector3() },
+    uPlanetWorld: { value: new THREE.Vector3() },
+    uRingNormal: { value: new THREE.Vector3(0, 1, 0) },
+    uInner: { value: 0 },
+    uOuter: { value: 0 },
+    uStrength: { value: 0.25 },
+  };
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nvarying vec3 vRingShadowWorldPos;"
+      )
+      .replace(
+        "#include <project_vertex>",
+        "#include <project_vertex>\nvRingShadowWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;"
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+varying vec3 vRingShadowWorldPos;
+uniform vec3 uSunWorld;
+uniform vec3 uPlanetWorld;
+uniform vec3 uRingNormal;
+uniform float uInner;
+uniform float uOuter;
+uniform float uStrength;`
+      )
+      .replace(
+        "#include <lights_fragment_end>",
+        `#include <lights_fragment_end>
+{
+  vec3 ringShadowRd = normalize(uSunWorld - vRingShadowWorldPos);
+  float ringShadowDenom = dot(uRingNormal, ringShadowRd);
+  if (abs(ringShadowDenom) > 1e-6) {
+    float ringShadowT = dot(uRingNormal, uPlanetWorld - vRingShadowWorldPos) / ringShadowDenom;
+    if (ringShadowT > 0.0) {
+      float ringShadowR = length(vRingShadowWorldPos + ringShadowRd * ringShadowT - uPlanetWorld);
+      // 内外缘各留约 4% 半影过渡：硬阈值会让环影暗带出现一条生硬的分界线
+      float ringShadowMargin = (uOuter - uInner) * 0.04;
+      float ringShadowBand =
+        smoothstep(uInner - ringShadowMargin, uInner + ringShadowMargin, ringShadowR) *
+        (1.0 - smoothstep(uOuter - ringShadowMargin, uOuter + ringShadowMargin, ringShadowR));
+      reflectedLight.directDiffuse *= mix(1.0, uStrength, ringShadowBand);
+    }
+  }
+}`
+      );
+  };
+  return uniforms;
 }
 
 /**
@@ -1021,6 +1405,23 @@ function calculateEquationOfTime(utcDate) {
 }
 
 /**
+ * 太阳赤纬（度）：太阳直射点纬度
+ * δ = asin( sin(ε)·sin(λ) )，λ 为太阳视黄经，ε 为黄赤交角（含章动交角主项）
+ * 与 calculateTrueSubsolarLongitude 配合，即可给出太阳直射点的完整经纬度
+ * @param {Date} utcDate - UTC日期对象
+ * @returns {number} 太阳赤纬（度），北纬为正
+ */
+function calculateSolarDeclination(utcDate) {
+  const T = centuriesSinceJ2000(julianDateTT(utcDate));
+  const lambda = degreesToRadians(solarApparentLongitude(T)); // 太阳视黄经
+  const omega = degreesToRadians(125.04 - 1934.136 * T); // 月球升交点平黄经
+  // 黄赤交角（IAU 1980 多项式 + 章动交角主项），与均时差计算保持一致
+  const eps0 = 23.43929111 - 0.01300417 * T - 0.00000016 * T * T;
+  const eps = degreesToRadians(eps0 + 0.00256 * Math.cos(omega));
+  return radToDeg(Math.asin(Math.sin(eps) * Math.sin(lambda)));
+}
+
+/**
  * 步骤2：计算真实日下点经度（太阳直射点经度）
  * @param {Date} utcDate - UTC日期对象
  * @returns {number} 日下点经度（度），东经为正，西经为负，范围 -180 到 180
@@ -1042,8 +1443,10 @@ function calculateTrueSubsolarLongitude(utcDate) {
   const EoT = calculateEquationOfTime(utcDate);
   const EoT_deg = EoT / 4; // 均时差转换为经度修正
 
-  // 4. 真实日下点经度 = 平太阳经度 + 均时差修正
-  let trueSubsolarLon = meanSubsolarLon + EoT_deg;
+  // 4. 真实日下点经度 = 平太阳经度 − 均时差修正
+  //    均时差为正（真太阳比平太阳快）时，真太阳已经越过格林尼治中天，
+  //    日下点位于本初子午线以西（经度更负），故此处取负号
+  let trueSubsolarLon = meanSubsolarLon - EoT_deg;
 
   // 5. 归一化到 -180 到 180 范围
   while (trueSubsolarLon > 180) trueSubsolarLon -= 360;
@@ -1201,10 +1604,15 @@ export {
   createEarthAtmosphere,
   softOrbitColor,
   createLocationMarker,
+  applyRingShadowToPlanet,
+  iauGroupQuaternion,
+  iauSpinY,
   calculateEarthRotation,
+  calculateEarthAxisAzimuth,
 
   // 日下点差量校准法导出
   calculateTrueSubsolarLongitude,
+  calculateSolarDeclination,
   measureModelSubsolarLongitude,
   performSubsolarCalibration,
 };

@@ -52,7 +52,8 @@ function pick(item) {
   position: fixed;
   top: 70px;
   left: 32px;
-  z-index: 25;
+  /* 高于信息面板（30）：面板停靠在搜索栏下方时，联想列表不被遮挡 */
+  z-index: 35;
   width: 280px;
 }
 .search-input {

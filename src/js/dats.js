@@ -161,8 +161,13 @@ const planetData = {
     a: [0.00257, 0.00000003], // 到地球平均距离及变化率（AU）
     e: [0.0549, 0.000029], // 偏心率及变化率
     I: [5.145, -0.052], // 轨道倾角及变化率
-    L: [134.9634114, 13.17635815 * 365.25 * 100],
-    longPeri: [318.0634, 0.1643],
+    // J2000 平黄经 L₀ = 218.3164°（速率 13.17639648°/日，朔望恒星月 27.32 天）。
+    // 注意：J2000 的 134.9634° 是月球平近点角 M，不可作为平黄经使用
+    //（两者相差 83.35°，混用会使月球在轨道上整体错位、月相全错）
+    L: [218.3164477, 13.17639648 * 365.25 * 100],
+    // 黄经近地点 ϖ = L − M = 83.353°（速率 = 平黄经速率 − 平近点角速率 = 0.1114°/日，
+    // 即近地点进动 8.85 年一圈）
+    longPeri: [83.3530513, 0.11140353 * 365.25 * 100],
     longNode: [125.044555, -0.05295],
     radius: 0.1737,
     name: "moon",
@@ -198,6 +203,389 @@ const planetData = {
       "月球是人类唯一亲身登陆过的地外天体。阿波罗计划期间，共有12名宇航员踏上月球表面，收集了约382公斤的月球样品。这些样品对研究月球和太阳系的形成演化提供了宝贵数据。月球上的水资源、氦-3等资源也引起了科学家的兴趣，未来可能成为深空探索的中转站。",
     earthInteraction:
       "月球对地球有重要影响。它的引力引起地球的潮汐现象，影响海洋、大气和地壳。月球还帮助稳定地球的自转轴倾角，使地球气候相对稳定。由于潮汐锁定，月球始终以同一面朝向地球，人类在地球上永远看不到月球的背面，直到1959年苏联探测器拍摄到月球背面的照片。",
+  },
+
+  /* ============ 巨行星的主要卫星 ============
+   * 说明：轨道半径（a）、偏心率、倾角、半径、公转周期均为真实观测值；
+   * 倾角按「相对行星赤道面」取值并在场景中随所属行星的组呈现
+   *（土星组带 26.7° 轴倾角，卫星与光环共面倾斜，见 SolarSystem._updatePlanets）；
+   * 平黄经初值为展示用取值（保证各卫星相位分散，伽利略卫星满足拉普拉斯共振关系
+   * λ₁ − 3λ₂ + 2λ₃ = 180°），节点与近心点的长期漂移忽略。
+   *
+   * 表面贴图为真实影像（texture 字段，public/assets/<name>.webp，源图见 assets/<name>.*），
+   * 均基于 NASA/JPL/USGS 公共领域数据：
+   *   io       — Steve Albers 拼合的 Galileo/Voyager 真色全球圆柱投影图
+   *   europa   — Steve Albers 拼合的 Juno/Galileo 全球彩色图（无标注、无数据空洞）
+   *   ganymede — Björn Jónsson 基于 NASA 数据的圆柱投影图（Galileo Regio 可辨）
+   *   callisto — Björn Jónsson 基于 NASA 数据的圆柱投影图（密集亮坑）
+   *   mimas    — Steve Albers 拼合的卡西尼全球图（赫歇尔坑清晰可辨）
+   *   enceladus— Steve Albers 拼合的卡西尼全球图（南极虎纹隐约可见）
+   *   rhea     — Steve Albers 拼合的卡西尼全球图
+   *   titan    — 卡西尼 ISS 近红外全球图（2011-04，Wikimedia Commons）
+   *              按 NASA Eyes 方式映射为自然色橙色雾霾外观（暗处为赤道沙丘带）
+   *   iapetus  — Steve Albers 拼合的卡西尼全球图（暗色卡西尼区 + 亮色半球两分性完整）
+   *   phobos   — Askaniy 基于 USGS / Viking 数据绘制的全球圆柱投影图
+   *             （Stickney 坑与沟槽地貌可辨，CC BY-SA 4.0，见 Wikimedia Commons）
+   *   deimos   — Askaniy 基于 NASA 数据绘制的全球圆柱投影图（光滑表壤外观，CC BY-SA 4.0）
+   */
+
+  // 木卫一（木星）
+  io: {
+    a: [0.0028195, 0], // 到木星平均距离 421,800 km
+    e: [0.0041, 0],
+    I: [0.036, 0], // 轨道倾角（相对木星赤道）
+    L: [172.29, (360 / 1.769138) * 365.25 * 100],
+    longPeri: [128.11, 0],
+    longNode: [43.98, 0],
+    radius: 0.1822, // 1821.6 km
+    name: "io",
+    color: 0xf2d24a,
+    day: 42.46, // 潮汐锁定：自转周期 = 公转周期
+    inc: 0,
+    dir: 0,
+    centralPlanet: "jupiter",
+    orbitalPeriod: 1.769,
+    meanAnomaly: 0,
+    texture: "io.webp",
+    albedo: 0.63,
+    description:
+      "太阳系中火山活动最剧烈的天体，表面有 400 多座活火山，硫磺喷发物把地表染成明黄与橙色。潮汐加热来自木星与邻近卫星的引力撕扯。",
+    mass: 0.0893,
+    density: 3.53,
+    gravity: 1.8,
+    temperature: -143,
+    escapeVelocity: 2.56,
+    moons: "无卫星",
+    notableFeatures:
+      "洛基火山口是太阳系最强的火山活动区，喷发高度可达 300 公里以上。表面几乎没有陨石坑——火山喷发不断覆盖旧地形。",
+  },
+
+  // 木卫二（木星）
+  europa: {
+    a: [0.0044859, 0], // 671,100 km
+    e: [0.0094, 0],
+    I: [0.466, 0],
+    L: [68.08, (360 / 3.551181) * 365.25 * 100],
+    longPeri: [308.08, 0],
+    longNode: [219.11, 0],
+    radius: 0.1561, // 1560.8 km
+    name: "europa",
+    color: 0xe9e0cf,
+    day: 85.22,
+    inc: 0,
+    dir: 0,
+    centralPlanet: "jupiter",
+    orbitalPeriod: 3.551,
+    meanAnomaly: 0,
+    texture: "europa.webp",
+    albedo: 0.67,
+    description:
+      "表面覆盖着冰壳，冰壳之下可能存在全球性液态海洋，含水量约为地球海洋的两倍，是太阳系中最有希望存在地外生命的天体之一。",
+    mass: 0.048,
+    density: 3.01,
+    gravity: 1.31,
+    temperature: -160,
+    escapeVelocity: 2.03,
+    moons: "无卫星",
+    notableFeatures:
+      "表面布满交叉的褐色条纹（冰壳裂缝），几乎没有陨石坑，是太阳系中最光滑的天体之一。",
+  },
+
+  // 木卫三（木星）
+  ganymede: {
+    a: [0.0071552, 0], // 1,070,400 km
+    e: [0.0013, 0],
+    I: [0.177, 0],
+    L: [285.97, (360 / 7.154553) * 365.25 * 100],
+    longPeri: [255.97, 0],
+    longNode: [63.55, 0],
+    radius: 0.2634, // 2634.1 km
+    name: "ganymede",
+    color: 0xb0a08c,
+    day: 171.7,
+    inc: 0,
+    dir: 0,
+    centralPlanet: "jupiter",
+    orbitalPeriod: 7.155,
+    meanAnomaly: 0,
+    texture: "ganymede.webp",
+    // 源图经度约定为「0° 在左缘」（伽利略区 233°E 位于图中 x≈0.65），
+    // 需左移半幅对齐场景约定（0° 居中），见 utils.createPlanet
+    mapShift: -0.5,
+    albedo: 0.43,
+    description:
+      "太阳系中最大的卫星，直径超过水星。它是唯一拥有自身磁场的卫星，表面既有古老的高地也有较年轻的沟槽地形。",
+    mass: 0.1482,
+    density: 1.94,
+    gravity: 1.43,
+    temperature: -163,
+    escapeVelocity: 2.74,
+    moons: "无卫星",
+    notableFeatures:
+      "沟槽地形（grooved terrain）显示其冰壳曾发生大规模断裂与重塑；地下同样被认为存在咸水海洋。",
+  },
+
+  // 木卫四（木星）
+  callisto: {
+    a: [0.0125851, 0], // 1,882,700 km
+    e: [0.0074, 0],
+    I: [0.192, 0],
+    L: [191.49, (360 / 16.689018) * 365.25 * 100],
+    longPeri: [351.49, 0],
+    longNode: [298.85, 0],
+    radius: 0.2410, // 2410.3 km
+    name: "callisto",
+    color: 0x8b8177,
+    day: 400.5,
+    inc: 0,
+    dir: 0,
+    centralPlanet: "jupiter",
+    orbitalPeriod: 16.689,
+    meanAnomaly: 0,
+    texture: "callisto.webp",
+    mapShift: -0.5, // 同木卫三：源图 0° 在左缘（瓦尔哈拉盆地 304°E 位于图中 x≈0.84）
+    albedo: 0.22,
+    description:
+      "太阳系中陨石坑最密集的天体，表面有长达 40 亿年的古老记录，几乎没有地质活动，被视为研究太阳系早期历史的「化石」。",
+    mass: 0.1076,
+    density: 1.83,
+    gravity: 1.24,
+    temperature: -139,
+    escapeVelocity: 2.44,
+    moons: "无卫星",
+    notableFeatures:
+      "拥有太阳系中最强的辐射环境之一，表面有著名的瓦尔哈拉撞击盆地，同心环状结构延伸超过 3000 公里。",
+  },
+
+  // 土卫一（土星）
+  mimas: {
+    a: [0.0012403, 0], // 185,540 km
+    e: [0.0196, 0],
+    I: [1.574, 0],
+    L: [161.5, (360 / 0.942422) * 365.25 * 100],
+    longPeri: [321.5, 0],
+    longNode: [173.03, 0],
+    radius: 0.0198, // 198.2 km
+    name: "mimas",
+    color: 0xcfcfcf,
+    day: 22.62,
+    inc: 0,
+    dir: 0,
+    centralPlanet: "saturn",
+    orbitalPeriod: 0.942,
+    meanAnomaly: 0,
+    texture: "mimas.webp",
+    albedo: 0.96,
+    description:
+      "因表面巨大的赫歇尔陨石坑而被称为「死星卫星」，撞坑直径达 130 公里，接近自身直径的三分之一，几乎把卫星撞裂。",
+    mass: 0.0000375,
+    density: 1.15,
+    gravity: 0.064,
+    temperature: -200,
+    escapeVelocity: 0.16,
+    moons: "无卫星",
+    notableFeatures:
+      "赫歇尔陨石坑深约 10 公里，其形成时的撞击接近解体 Mimas 的极限；近年研究还推测其冰壳下可能存在年轻的地下海洋。",
+  },
+
+  // 土卫二（土星）
+  enceladus: {
+    a: [0.0015912, 0], // 238,040 km
+    e: [0.0047, 0],
+    I: [0.009, 0],
+    L: [209.5, (360 / 1.370218) * 365.25 * 100],
+    longPeri: [119.5, 0],
+    longNode: [169.51, 0],
+    radius: 0.0252, // 252.1 km
+    name: "enceladus",
+    color: 0xf2f6f8,
+    day: 32.89,
+    inc: 0,
+    dir: 0,
+    centralPlanet: "saturn",
+    orbitalPeriod: 1.370,
+    meanAnomaly: 0,
+    texture: "enceladus.webp",
+    albedo: 1.0,
+    description:
+      "太阳系中反射率最高的天体，南极的「虎纹」裂缝持续喷出含有机分子的水汽羽流，为土星 E 环补充物质，是地外生命探测的重点目标。",
+    mass: 0.000108,
+    density: 1.61,
+    gravity: 0.113,
+    temperature: -198,
+    escapeVelocity: 0.24,
+    moons: "无卫星",
+    notableFeatures:
+      "卡西尼号曾穿过其羽流取样，检测到盐分、二氧化硅颗粒和有机分子，表明冰壳下存在温暖的液态海洋与热液活动。",
+  },
+
+  // 土卫五（土星）
+  rhea: {
+    a: [0.0035235, 0], // 527,108 km
+    e: [0.0010, 0],
+    I: [0.345, 0],
+    L: [1.0, (360 / 4.518212) * 365.25 * 100],
+    longPeri: [41.0, 0],
+    longNode: [351.02, 0],
+    radius: 0.0764, // 763.8 km
+    name: "rhea",
+    color: 0xc9c4bb,
+    day: 108.43,
+    inc: 0,
+    dir: 0,
+    centralPlanet: "saturn",
+    orbitalPeriod: 4.518,
+    meanAnomaly: 0,
+    texture: "rhea.webp",
+    albedo: 0.95,
+    description:
+      "土星第二大卫星，主要由水冰构成。表面古老且布满陨石坑，有一条稀薄的氧-二氧化碳外逸层。",
+    mass: 0.00231,
+    density: 1.24,
+    gravity: 0.26,
+    temperature: -174,
+    escapeVelocity: 0.64,
+    moons: "无卫星",
+    notableFeatures:
+      "在土星三大内卫星中比例最冰；赤道附近还有可能来自自身环系统的细小碎片带。",
+  },
+
+  // 土卫六（土星）
+  titan: {
+    a: [0.0081677, 0], // 1,221,870 km
+    e: [0.0288, 0],
+    I: [0.348, 0],
+    L: [240.0, (360 / 15.945421) * 365.25 * 100],
+    longPeri: [180.0, 0],
+    longNode: [28.06, 0],
+    radius: 0.2575, // 2574.7 km
+    name: "titan",
+    color: 0xd9a05b,
+    day: 382.69,
+    inc: 0,
+    dir: 0,
+    centralPlanet: "saturn",
+    orbitalPeriod: 15.945,
+    meanAnomaly: 0,
+    texture: "titan.webp",
+    mapShift: -0.5, // 卡西尼 ISS 全球图 0° 在左缘（世外桃源 Xanadu 260°E 位于图中 x≈0.72）
+    albedo: 0.22,
+    description:
+      "太阳系第二大卫星，也是唯一拥有浓厚大气层的卫星（以氮气为主，气压约为地球的 1.5 倍）。表面有液态甲烷湖泊与河流，是除地球外唯一有稳定地表液体的天体。",
+    mass: 0.1345,
+    density: 1.88,
+    gravity: 1.35,
+    temperature: -179,
+    escapeVelocity: 2.64,
+    moons: "无卫星",
+    notableFeatures:
+      "橙色烟雾般的雾霭遮住地表，惠更斯号探测器于 2005 年在此着陆；北极附近有面积超过里海的甲烷湖群。",
+  },
+
+  // 土卫八（土星）
+  iapetus: {
+    a: [0.0238025, 0], // 3,560,820 km
+    e: [0.0286, 0],
+    I: [15.47, 0],
+    L: [61.6, (360 / 79.3215) * 365.25 * 100],
+    longPeri: [271.6, 0],
+    longNode: [314.5, 0],
+    radius: 0.0735, // 734.5 km
+    name: "iapetus",
+    color: 0x8d8378,
+    day: 1903.7,
+    inc: 0,
+    dir: 0,
+    centralPlanet: "saturn",
+    orbitalPeriod: 79.32,
+    meanAnomaly: 0,
+    texture: "iapetus.webp",
+    albedo: 0.3,
+    description:
+      "土星最奇特的卫星：一个半球亮如新雪、另一个半球暗如煤灰，明暗反差达 10 倍以上；赤道上还有一道环绕全球的「核桃脊」。",
+    mass: 0.00181,
+    density: 1.09,
+    gravity: 0.22,
+    temperature: -143,
+    escapeVelocity: 0.57,
+    moons: "无卫星",
+    notableFeatures:
+      "轨道倾角达 15.5°，与土星其他主要卫星不在同一平面；暗面可能来自外侧尘埃的长期沉降，脊高约 13 公里、长 1300 公里。",
+  },
+
+  /* ============ 火星的卫星 ============
+   * 火卫一 / 火卫二：尺度极小（平均半径 11.3 / 6.2 km），轨道半长轴按 AU 换算
+   * （火卫一约 2.76 个火星半径，火卫二约 6.92 个火星半径），倾角相对火星赤道；
+   * 平黄经初值为展示用取值，节点与近心点的快速漂移（火卫一近火点每约 2.1 年
+   * 进动一周）忽略。
+   */
+
+  // 火卫一（火星）
+  phobos: {
+    a: [0.00006267, 0], // 到火星中心平均距离 9,376 km ≈ 2.76 个火星半径
+    e: [0.0151, 0],
+    I: [1.093, 0], // 轨道倾角（相对火星赤道）
+    L: [100.0, (360 / 0.31891) * 365.25 * 100], // 公转快于火星自转：7 小时 39 分一圈
+    longPeri: [350.3, 0],
+    longNode: [200.1, 0],
+    radius: 0.0011267, // 11.27 km（三轴 27×22×18 km 的平均半径）
+    // 非球体：三轴比 13.5:11:9 + 确定性起伏（真实土豆形，见 utils.createIrregularMoonGeometry）
+    shape: { axis: [13.5, 11, 9], seed: 3, lumps: 0.08 },
+    mapShift: -0.5, // 源图 0° 在左缘（斯蒂克尼坑 131°E 位于图中 x≈0.30）
+    name: "phobos",
+    color: 0x9a8f85,
+    day: 7.65, // 潮汐锁定：自转周期 = 公转周期
+    inc: 0,
+    dir: 0,
+    centralPlanet: "mars",
+    orbitalPeriod: 0.319,
+    meanAnomaly: 0,
+    texture: "phobos.webp",
+    albedo: 0.071,
+    description:
+      "火星两颗卫星中较大、较内侧的一颗，轨道距火星表面仅约 6,000 公里。它公转快于火星自转——在火星上看，它西升东落，每个火星日两次掠过天空。名字在希腊语中意为「恐惧」。",
+    mass: 1.07e-8, // ×10²⁴ kg
+    density: 1.876,
+    gravity: 0.0057,
+    temperature: -40,
+    escapeVelocity: 0.011,
+    moons: "无卫星",
+    notableFeatures:
+      "斯蒂克尼陨石坑直径约 9 公里，接近本体直径的三分之一；轨道正以每百年约 1.8 米的速度缓慢下降，数千万年后将解体为火星环或撞击火星，表面的平行沟槽可能正是早期撞击留下的裂缝。",
+  },
+
+  // 火卫二（火星）
+  deimos: {
+    a: [0.00015684, 0], // 23,463 km ≈ 6.92 个火星半径
+    e: [0.00033, 0],
+    I: [1.79, 0], // 轨道倾角（相对火星赤道）
+    L: [285.0, (360 / 1.26244) * 365.25 * 100],
+    longPeri: [2.2, 0],
+    longNode: [318.7, 0],
+    radius: 0.00062, // 6.2 km（三轴 15×12.2×11 km 的平均半径）
+    // 非球体：三轴比 7.5:6.1:5.5，起伏比火卫一小（表面更平滑）
+    shape: { axis: [7.5, 6.1, 5.5], seed: 7, lumps: 0.05 },
+    mapShift: -0.5, // 同火卫一：Askaniy 源图 0° 在左缘
+    name: "deimos",
+    color: 0xb3a99e,
+    day: 30.3, // 潮汐锁定：自转周期 = 公转周期
+    inc: 0,
+    dir: 0,
+    centralPlanet: "mars",
+    orbitalPeriod: 1.263,
+    meanAnomaly: 0,
+    texture: "deimos.webp",
+    albedo: 0.068,
+    description:
+      "火星较小、较外侧的卫星，直径仅约 12 公里，是太阳系最小的卫星之一。名字在希腊语中意为「惊慌」，与火卫一（恐惧）同为战神阿瑞斯的双生子。",
+    mass: 1.5e-9, // ×10²⁴ kg
+    density: 1.471,
+    gravity: 0.003,
+    temperature: -40,
+    escapeVelocity: 0.0057,
+    moons: "无卫星",
+    notableFeatures:
+      "表面覆盖着厚厚的尘埃表壤，外观比火卫一平滑得多；从火星表面看它缓慢东升西落，两次升起之间相隔约 5.4 个地球日，远处看去更像一颗亮星。",
   },
 
   // 火星
@@ -268,7 +656,7 @@ const planetData = {
     atmosphere:
       "主要由氢(75%)和氦(24%)组成，还有少量的甲烷、氨、水等。有明显的云带结构，包括著名的大红斑风暴。",
     moons:
-      "至少95个已知卫星，其中最大的四个是：木卫一(Io)、木卫二(Europa)、木卫三(Ganymede)和木卫四(Callisto)",
+      "至少95个已知卫星，其中最大的四个是：木卫一(Io)、木卫二(Europa)、木卫三(Ganymede)和木卫四(Callisto)（场景中已按真实轨道建模，可在搜索框输入木卫一 ~ 木卫四定位）",
     discoveryInfo: "古代即被人类发现，是已知最早被记录的行星之一。",
     notableFeatures:
       "大红斑是一个持续了至少400年的巨大风暴，直径可达地球的2-3倍。拥有最强的磁场，强度约为地球的20000倍。",
@@ -312,7 +700,7 @@ const planetData = {
     atmosphere:
       "主要由氢(75%)和氦(25%)组成，还有少量的甲烷、氨等。有明显的云带结构，但不如木星明显。",
     moons:
-      "至少146个已知卫星，其中最大的是泰坦(Titan)，它是太阳系第二大卫星，拥有浓厚的大气层。",
+      "至少146个已知卫星，其中最大的是泰坦(Titan)，它是太阳系第二大卫星，拥有浓厚的大气层（场景中已建模土卫一、土卫二、土卫五、土卫六、土卫八，可在搜索框直接定位）",
     discoveryInfo:
       "古代即被人类发现，是已知最早被记录的行星之一。1610年伽利略首次观测到土星的光环。",
     notableFeatures:
@@ -432,6 +820,19 @@ const cnNames = {
   saturn: "土星",
   uranus: "天王星",
   neptune: "海王星",
+  // 火星卫星（场景中已建模）
+  phobos: "火卫一",
+  deimos: "火卫二",
+  // 巨行星主要卫星（场景中已建模）
+  io: "木卫一",
+  europa: "木卫二",
+  ganymede: "木卫三",
+  callisto: "木卫四",
+  mimas: "土卫一",
+  enceladus: "土卫二",
+  rhea: "土卫五",
+  titan: "土卫六",
+  iapetus: "土卫八",
 };
 
 export { planetData, cnNames };
